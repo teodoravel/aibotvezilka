@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="mk">
+<head>
+    <meta charset="utf-8">
+    <title>Тест страница</title>
+</head>
+<body>
+<header>
+    <nav><a href="#posts">Објави</a></nav>
+</header>
+<main id="posts">
+    <h1>Македонски објави</h1>
+    <form onsubmit="event.preventDefault(); document.getElementById('result').textContent = 'Барано: ' + document.getElementById('search').value;">
+        <input id="search" type="search" placeholder="Пребарај">
+        <button type="submit">Барај</button>
+    </form>
+    <p id="result"></p>
+    <button id="more" onclick="document.getElementById('extra').style.display = 'block'">Прикажи повеќе</button>
+    <div id="extra" style="display: none">Скриена објава за тестирање.</div>
+    <div style="height: 3000px"></div>
+</main>
+</body>
+</html>

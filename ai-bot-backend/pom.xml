@@ -126,6 +126,10 @@
         - a browser automation library (Playwright for Java or Selenium) for the BrowserAgent implementation
         - an HTTP client / SDK for the LLM provider you use for the LlmClient implementation
     -->
+    <dependency>
+      <groupId>org.seleniumhq.selenium</groupId>
+      <artifactId>selenium-java</artifactId>
+    </dependency>
   </dependencies>
   <build>
     <plugins>
