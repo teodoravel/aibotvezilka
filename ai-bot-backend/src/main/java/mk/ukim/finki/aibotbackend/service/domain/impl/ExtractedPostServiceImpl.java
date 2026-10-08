@@ -37,7 +37,7 @@ public class ExtractedPostServiceImpl implements ExtractedPostService {
 
     @Override
     public List<ExtractedPost> saveAll(List<ExtractedPost> posts) {
-        throw new UnsupportedOperationException("TODO(student): Implement ExtractedPostService.saveAll().");
+        return extractedPostRepository.saveAll(posts);
     }
 
     @Override
