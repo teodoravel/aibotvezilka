@@ -4,10 +4,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import mk.ukim.finki.aibotbackend.model.enums.DonationStatus;
 import mk.ukim.finki.aibotbackend.model.exception.VezilkaIntegrationException;
@@ -17,19 +22,23 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
- * {@link VezilkaClient} that uses the Vezilka Public Donation API v1 with an API key.
+ * {@link BatchVezilkaClient} that uses the Vezilka Public Donation API v1 with an API key.
  *
  * <p>Vezilka decides about every text right away. Accepted texts get an id that can be read back later,
  * but rejected and duplicate texts come back without one, so for those the reference stores the decision
- * itself ({@code rejected:<reason>} or {@code duplicate}) and {@link #checkStatus(String)} understands both.</p>
+ * itself ({@code rejected:<reason>} or {@code duplicate}). A batch gets a reference with the counts,
+ * e.g. {@code batch:accepted=8,duplicate=1,rejected=2}. {@link #checkStatus(String)} understands all of them.</p>
  */
 @Slf4j
 @Component
-public class PublicApiVezilkaClient implements VezilkaClient {
+public class PublicApiVezilkaClient implements BatchVezilkaClient {
     static final String DUPLICATE_REFERENCE = "duplicate";
     static final String REJECTED_REFERENCE_PREFIX = "rejected:";
+    static final String BATCH_REFERENCE_PREFIX = "batch:";
 
+    private static final int MAX_ITEMS_PER_REQUEST = 100;
     private static final int MAX_ATTEMPTS = 3;
+    private static final Pattern BATCH_REFERENCE = Pattern.compile("batch:accepted=(\\d+),duplicate=(\\d+),rejected=(\\d+)");
 
     private final RestClient restClient;
 
@@ -42,26 +51,46 @@ public class PublicApiVezilkaClient implements VezilkaClient {
 
     @Override
     public DonationReceipt submitTextDonation(TextDonationRequest request) {
-        Map<String, Object> item = new LinkedHashMap<>();
-        item.put("source_url", request.sourceUrl());
-        item.put("text", request.content());
-        item.put("page_title", request.title());
-        item.put("page_language", "mk");
-        item.put("retrieved_at", OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS).toString());
-
-        JsonNode response = send(() -> restClient.post()
-            .uri("/api/public/v1/donations/text/")
-            .body(Map.of("items", List.of(item)))
-            .retrieve()
-            .body(JsonNode.class));
-
-        JsonNode result = response == null ? null : response.path("results").path(0);
-        if (result == null || result.isMissingNode()) {
-            throw new VezilkaIntegrationException("Vezilka did not return a result for the donation.");
-        }
-        DonationReceipt receipt = receiptOf(result);
+        DonationReceipt receipt = receiptOf(donate(List.of(request)).getFirst());
         log.info("Donation \"{}\" submitted to Vezilka: {}", request.title(), receipt.message());
         return receipt;
+    }
+
+    @Override
+    public DonationReceipt submitTextDonations(List<TextDonationRequest> requests) {
+        if (requests.isEmpty()) {
+            throw new IllegalArgumentException("There is nothing to donate.");
+        }
+
+        int accepted = 0;
+        int duplicates = 0;
+        int rejected = 0;
+        Map<String, Integer> rejectionReasons = new TreeMap<>();
+        for (int from = 0; from < requests.size(); from += MAX_ITEMS_PER_REQUEST) {
+            List<TextDonationRequest> chunk = requests.subList(from, Math.min(from + MAX_ITEMS_PER_REQUEST, requests.size()));
+            for (JsonNode result : donate(chunk)) {
+                if (result.path("deduped").asBoolean(false)) {
+                    duplicates++;
+                } else if ("accepted".equals(result.path("status").asText())) {
+                    accepted++;
+                } else {
+                    rejected++;
+                    rejectionReasons.merge(result.path("rejectionReason").asText("unknown"), 1, Integer::sum);
+                }
+            }
+        }
+
+        String reference = "%saccepted=%d,duplicate=%d,rejected=%d"
+            .formatted(BATCH_REFERENCE_PREFIX, accepted, duplicates, rejected);
+        String message = "%d accepted, %d already in the corpus, %d rejected".formatted(accepted, duplicates, rejected);
+        if (!rejectionReasons.isEmpty()) {
+            message += rejectionReasons.entrySet()
+                .stream()
+                .map(reason -> describe(reason.getKey()) + ": " + reason.getValue())
+                .collect(Collectors.joining(", ", " (", ")"));
+        }
+        log.info("{} texts submitted to Vezilka: {}.", requests.size(), message);
+        return new DonationReceipt(reference, message + ".");
     }
 
     @Override
@@ -75,6 +104,12 @@ public class PublicApiVezilkaClient implements VezilkaClient {
         if (vezilkaReference.startsWith(REJECTED_REFERENCE_PREFIX)) {
             return DonationStatus.REJECTED;
         }
+        Matcher batch = BATCH_REFERENCE.matcher(vezilkaReference);
+        if (batch.matches()) {
+            // the batch counts as accepted when at least one of its texts is in the corpus
+            int inCorpus = Integer.parseInt(batch.group(1)) + Integer.parseInt(batch.group(2));
+            return inCorpus > 0 ? DonationStatus.ACCEPTED : DonationStatus.REJECTED;
+        }
 
         JsonNode donation = send(() -> restClient.get()
             .uri("/api/public/v1/donations/{id}/", vezilkaReference)
@@ -85,6 +120,37 @@ public class PublicApiVezilkaClient implements VezilkaClient {
             case "rejected" -> DonationStatus.REJECTED;
             default -> DonationStatus.SUBMITTED;
         };
+    }
+
+    /**
+     * Sends one request with the given texts as items and returns Vezilka's result for each of them, in order.
+     */
+    private List<JsonNode> donate(List<TextDonationRequest> requests) {
+        String retrievedAt = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS).toString();
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (TextDonationRequest request : requests) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("source_url", request.sourceUrl());
+            item.put("text", request.content());
+            item.put("page_title", request.title());
+            item.put("page_language", "mk");
+            item.put("retrieved_at", retrievedAt);
+            items.add(item);
+        }
+
+        JsonNode response = send(() -> restClient.post()
+            .uri("/api/public/v1/donations/text/")
+            .body(Map.of("items", items))
+            .retrieve()
+            .body(JsonNode.class));
+
+        JsonNode results = response == null ? null : response.path("results");
+        if (results == null || !results.isArray() || results.size() != requests.size()) {
+            throw new VezilkaIntegrationException("Vezilka did not return a result for every donated text.");
+        }
+        List<JsonNode> resultList = new ArrayList<>();
+        results.forEach(resultList::add);
+        return resultList;
     }
 
     private DonationReceipt receiptOf(JsonNode result) {

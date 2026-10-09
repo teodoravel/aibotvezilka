@@ -2,6 +2,7 @@ package mk.ukim.finki.aibotbackend.web.handler;
 
 import mk.ukim.finki.aibotbackend.model.exception.DonationBatchNotFoundException;
 import mk.ukim.finki.aibotbackend.model.exception.InvalidDonationStateException;
+import mk.ukim.finki.aibotbackend.model.exception.PostNotDonatableException;
 import mk.ukim.finki.aibotbackend.model.exception.PostNotFoundException;
 import mk.ukim.finki.aibotbackend.model.exception.VezilkaIntegrationException;
 import mk.ukim.finki.aibotbackend.web.controller.DonationController;
@@ -20,8 +21,8 @@ public class DonationControllerExceptionHandler {
             .body(ApiError.of(HttpStatus.NOT_FOUND, exception.getMessage()));
     }
 
-    @ExceptionHandler(InvalidDonationStateException.class)
-    public ResponseEntity<ApiError> handleInvalidState(InvalidDonationStateException exception) {
+    @ExceptionHandler({InvalidDonationStateException.class, PostNotDonatableException.class})
+    public ResponseEntity<ApiError> handleInvalidState(RuntimeException exception) {
         return ResponseEntity
             .status(HttpStatus.CONFLICT)
             .body(ApiError.of(HttpStatus.CONFLICT, exception.getMessage()));

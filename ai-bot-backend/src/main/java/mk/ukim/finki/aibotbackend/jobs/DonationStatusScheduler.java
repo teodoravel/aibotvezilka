@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 /**
  * Periodically asks doniraj.vezilka.ai what happened to the SUBMITTED
  * donation batches. The heavy lifting is in
- * {@code DonationService.refreshSubmittedStatuses()} — TODO(student).
+ * {@code DonationService.refreshSubmittedStatuses()}.
  */
 @Component
 @Slf4j
