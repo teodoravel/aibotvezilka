@@ -1,5 +1,6 @@
 package mk.ukim.finki.aibotbackend.web.handler;
 
+import mk.ukim.finki.aibotbackend.model.exception.PostAlreadyDonatedException;
 import mk.ukim.finki.aibotbackend.model.exception.PostNotFoundException;
 import mk.ukim.finki.aibotbackend.web.controller.ExtractedPostController;
 import mk.ukim.finki.aibotbackend.web.dto.ApiError;
@@ -15,5 +16,12 @@ public class ExtractedPostControllerExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.NOT_FOUND)
             .body(ApiError.of(HttpStatus.NOT_FOUND, exception.getMessage()));
+    }
+
+    @ExceptionHandler(PostAlreadyDonatedException.class)
+    public ResponseEntity<ApiError> handleAlreadyDonated(PostAlreadyDonatedException exception) {
+        return ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .body(ApiError.of(HttpStatus.CONFLICT, exception.getMessage()));
     }
 }
