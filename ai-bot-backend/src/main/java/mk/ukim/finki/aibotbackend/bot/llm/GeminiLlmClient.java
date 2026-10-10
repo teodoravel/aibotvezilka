@@ -8,12 +8,19 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import mk.ukim.finki.aibotbackend.bot.browser.PageSnapshot;
 import mk.ukim.finki.aibotbackend.model.enums.BotActionType;
 import mk.ukim.finki.aibotbackend.model.exception.BotExecutionException;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Comment;
+import org.jsoup.nodes.Element;
+import org.jsoup.nodes.Node;
+import org.jsoup.nodes.TextNode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
@@ -33,19 +40,25 @@ import org.springframework.web.client.RestClientResponseException;
 public class GeminiLlmClient implements LlmClient {
     private static final int HISTORY_SIZE = 15;
     private static final int MAX_ATTEMPTS = 3;
+    private static final int MAX_PAGE_LENGTH = 24_000;
+    private static final int MAX_LABEL_LENGTH = 100;
+    private static final Set<String> INLINE_TAGS = Set.of(
+        "a", "span", "b", "i", "em", "strong", "small", "label", "time", "button", "abbr", "code"
+    );
     private static final Pattern RETRY_DELAY = Pattern.compile("\"retryDelay\"\\s*:\\s*\"(\\d+)");
 
     private static final String DECISION_PROMPT = """
         You control a web browser for a bot that collects public Macedonian-language posts from a social network \
         and donates them to doniraj.vezilka.ai, a platform that preserves the Macedonian language.
 
-        On every step you get the goal, the actions done so far and the current page as simplified HTML. \
-        Its first line tells how far the page is scrolled. The elements you can use have a data-bot-id number.
+        On every step you get the goal, the actions done so far and the text of the current page. \
+        Its first line tells how far the page is scrolled. The elements you can use are written as \
+        [number tag "label" link].
 
         Reply with the single next action:
         - NAVIGATE: open a page, target = the full URL
-        - CLICK: click an element, target = its data-bot-id number
-        - TYPE: type into an input, target = its data-bot-id number, value = the text (end it with \\n to press Enter)
+        - CLICK: click an element, target = its number
+        - TYPE: type into an input, target = its number, value = the text (end it with \\n to press Enter)
         - SCROLL: scroll down to load more content
         - WAIT: wait for the page to finish loading
         - EXTRACT: collect the posts that are visible right now
@@ -53,7 +66,7 @@ public class GeminiLlmClient implements LlmClient {
         - FINISH: stop, when the goal is done or cannot be done
 
         Rules:
-        - Use only data-bot-id numbers from the current page.
+        - Use only element numbers from the current page.
         - EXTRACT when posts with Macedonian text are visible, then SCROLL to load new ones. \
         Do not extract the same view twice in a row.
         - Close cookie and consent dialogs by rejecting the optional cookies.
@@ -97,6 +110,12 @@ public class GeminiLlmClient implements LlmClient {
     public BotDecision decideNextAction(PageSnapshot snapshot, String goal, List<BotAction> history) {
         String answer = generate(DECISION_PROMPT, describe(snapshot, goal, history), snapshot.screenshotBase64(), DECISION_SCHEMA);
         BotDecision decision = parseDecision(answer);
+        // the model sometimes finishes right after scrolling, the newly loaded posts would then never be extracted
+        boolean finishes = decision.goalReached() || decision.action().type() == BotActionType.FINISH;
+        if (finishes && !history.isEmpty() && history.getLast().type() == BotActionType.SCROLL) {
+            BotAction extract = new BotAction(BotActionType.EXTRACT, null, null, "Extract what the last scroll loaded before finishing.");
+            decision = new BotDecision(extract, false, decision.rationale());
+        }
         log.debug("Decided {} {} ({})", decision.action().type(), decision.action().target(), decision.rationale());
         return decision;
     }
@@ -126,8 +145,76 @@ public class GeminiLlmClient implements LlmClient {
             .append("\nCURRENT PAGE\n")
             .append("URL: ").append(snapshot.url()).append('\n')
             .append("TITLE: ").append(snapshot.title()).append('\n')
-            .append(snapshot.domContent())
+            .append(textOf(snapshot.domContent()))
             .toString();
+    }
+
+    /**
+     * The snapshot keeps the whole page for the content extractor, the model gets a much shorter text view of it:
+     * plain text, plus the elements it can use written as [number tag "label" link].
+     */
+    private static String textOf(String domContent) {
+        if (domContent == null) {
+            return "";
+        }
+        StringBuilder view = new StringBuilder();
+        Jsoup.parseBodyFragment(domContent).body().childNodes().forEach(node -> appendNode(node, view));
+        String text = view.toString()
+            .replaceAll("[ \\t]+", " ")
+            .replaceAll(" *\\n[ \\n]*", "\n")
+            .strip();
+        return text.length() <= MAX_PAGE_LENGTH
+            ? text
+            : text.substring(0, MAX_PAGE_LENGTH) + "\n(the rest of the page is cut off)";
+    }
+
+    private static void appendNode(Node node, StringBuilder view) {
+        switch (node) {
+            case TextNode text -> view.append(text.text());
+            case Comment comment -> view.append('(').append(comment.getData().strip()).append(")\n");
+            case Element element -> appendElement(element, view);
+            default -> {
+            }
+        }
+    }
+
+    private static void appendElement(Element element, StringBuilder view) {
+        if (element.hasAttr("data-bot-id")) {
+            view.append(" [").append(element.attr("data-bot-id")).append(' ').append(element.tagName());
+            String label = labelOf(element);
+            if (!label.isEmpty()) {
+                view.append(" \"").append(label).append('"');
+            }
+            if (element.hasAttr("href")) {
+                view.append(' ').append(element.attr("href"));
+            }
+            view.append("] ");
+            return;
+        }
+        if (element.tagName().equals("img")) {
+            return;
+        }
+        boolean block = !INLINE_TAGS.contains(element.tagName());
+        if (block) {
+            view.append('\n');
+        }
+        element.childNodes().forEach(child -> appendNode(child, view));
+        if (block) {
+            view.append('\n');
+        }
+    }
+
+    private static String labelOf(Element element) {
+        String label = element.text();
+        if (label.isBlank()) {
+            label = Stream.of("aria-label", "placeholder", "title", "value", "alt")
+                .map(element::attr)
+                .filter(attribute -> !attribute.isBlank())
+                .findFirst()
+                .orElse("");
+        }
+        label = label.replaceAll("\\s+", " ").strip();
+        return label.length() <= MAX_LABEL_LENGTH ? label : label.substring(0, MAX_LABEL_LENGTH) + "…";
     }
 
     private String generate(String systemPrompt, String userPrompt, String screenshotBase64, Map<String, Object> responseSchema) {

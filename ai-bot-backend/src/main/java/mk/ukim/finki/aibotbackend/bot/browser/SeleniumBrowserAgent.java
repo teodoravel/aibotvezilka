@@ -3,6 +3,7 @@ package mk.ukim.finki.aibotbackend.bot.browser;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
@@ -34,7 +35,8 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class SeleniumBrowserAgent implements BrowserAgent {
-    private static final int MAX_DOM_LENGTH = 30_000;
+    // big enough for a video page with all of its loaded comments, the LLM gets a shorter view of it
+    private static final int MAX_DOM_LENGTH = 200_000;
     private static final Pattern ELEMENT_NUMBER = Pattern.compile("^\\[?(\\d+)]?$");
     private static final String SNAPSHOT_SCRIPT = readScript("bot/snapshot.js");
     private static final String FIND_ELEMENT_SCRIPT = readScript("bot/find-element.js");
@@ -64,8 +66,9 @@ public class SeleniumBrowserAgent implements BrowserAgent {
 
     @Override
     public void navigateTo(String url) {
-        log.debug("Navigating to {}", url);
-        browser().navigate().to(url);
+        String absoluteUrl = absolute(url.strip());
+        log.debug("Navigating to {}", absoluteUrl);
+        browser().navigate().to(absoluteUrl);
         waitForPage();
     }
 
@@ -141,6 +144,20 @@ public class SeleniumBrowserAgent implements BrowserAgent {
             start();
         }
         return driver;
+    }
+
+    // the model sometimes writes links the way they appear on the page, e.g. "/watch?v=..." or "www.youtube.com/..."
+    private String absolute(String url) {
+        if (url.startsWith("/") && !url.startsWith("//")) {
+            URI current = URI.create(browser().getCurrentUrl());
+            if (current.getAuthority() != null) {
+                return current.getScheme() + "://" + current.getAuthority() + url;
+            }
+        }
+        if (!url.matches("(?i)^[a-z][a-z0-9+.-]*:.*")) {
+            return "https://" + url.replaceFirst("^//", "");
+        }
+        return url;
     }
 
     private WebElement find(String description, boolean input) {
