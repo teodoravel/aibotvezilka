@@ -20,11 +20,13 @@ public class DonationApplicationServiceImpl implements DonationApplicationServic
 
     @Override
     public List<DisplayDonationBatchDto> findAll() {
+        // TODO(student): Implement DonationApplicationService.findAll().
         return DisplayDonationBatchDto.from(donationService.findAll());
     }
 
     @Override
     public Optional<DisplayDonationBatchDto> findById(Long id) {
+        // TODO(student): Implement DonationApplicationService.findById().
         return donationService
             .findById(id)
             .map(DisplayDonationBatchDto::from);
@@ -33,12 +35,14 @@ public class DonationApplicationServiceImpl implements DonationApplicationServic
     @Override
     @Transactional
     public DisplayDonationBatchDto create(CreateDonationBatchDto createDonationBatchDto) {
+        // TODO(student): Implement DonationApplicationService.create().
         return DisplayDonationBatchDto.from(donationService.createBatch(createDonationBatchDto.postIds()));
     }
 
     @Override
     @Transactional
     public DisplayDonationBatchDto approve(Long id) {
+        // TODO(student): Implement DonationApplicationService.approve().
         return DisplayDonationBatchDto.from(donationService.approve(id));
     }
 
@@ -46,6 +50,7 @@ public class DonationApplicationServiceImpl implements DonationApplicationServic
     // when Vezilka cannot be reached the batch is still saved as FAILED, so it can be sent again later
     @Transactional(dontRollbackOn = VezilkaIntegrationException.class)
     public DisplayDonationBatchDto submit(Long id) {
+        // TODO(student): Implement DonationApplicationService.submit().
         return DisplayDonationBatchDto.from(donationService.submit(id));
     }
 }

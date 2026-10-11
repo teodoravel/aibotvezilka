@@ -32,6 +32,11 @@ const splitDetails = (details: string | null) => {
     : { target: text.slice(0, index), reasoning: text.slice(index + DETAILS_SEPARATOR.length) };
 };
 
+/**
+ * TODO(student): Render the agentic-loop trace: one row per action with its
+ * type, details, success indicator and timestamp — the live view of what
+ * your bot is doing during a session.
+ */
 const SessionLogViewer = ({ logs }: SessionLogViewerProps) => {
   if (logs.length === 0) {
     return (

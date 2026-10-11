@@ -18,6 +18,7 @@ public class ExtractedPostApplicationServiceImpl implements ExtractedPostApplica
 
     @Override
     public Page<DisplayExtractedPostDto> findAll(PostFilterDto filter, int page, int size) {
+        // TODO(student): Implement ExtractedPostApplicationService.findAll().
         return extractedPostService
             .findAll(filter, page, size)
             .map(DisplayExtractedPostDto::from);
@@ -25,6 +26,7 @@ public class ExtractedPostApplicationServiceImpl implements ExtractedPostApplica
 
     @Override
     public Optional<DisplayExtractedPostDto> findById(Long id) {
+        // TODO(student): Implement ExtractedPostApplicationService.findById().
         return extractedPostService
             .findById(id)
             .map(DisplayExtractedPostDto::from);
@@ -32,6 +34,7 @@ public class ExtractedPostApplicationServiceImpl implements ExtractedPostApplica
 
     @Override
     public Optional<DisplayExtractedPostDto> deleteById(Long id) {
+        // TODO(student): Implement ExtractedPostApplicationService.deleteById().
         return extractedPostService
             .deleteById(id)
             .map(DisplayExtractedPostDto::from);

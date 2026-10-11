@@ -28,6 +28,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
+// TODO(student): Replace this bean with an implementation backed by a real LLM.
 /**
  * {@link LlmClient} backed by the Gemini API (Google AI Studio).
  *
@@ -103,11 +104,13 @@ public class GeminiLlmClient implements LlmClient {
 
     @Override
     public String complete(String systemPrompt, String userPrompt) {
+        // TODO(student): Implement LlmClient.complete().
         return generate(systemPrompt, userPrompt, null, null);
     }
 
     @Override
     public BotDecision decideNextAction(PageSnapshot snapshot, String goal, List<BotAction> history) {
+        // TODO(student): Implement LlmClient.decideNextAction().
         String answer = generate(DECISION_PROMPT, describe(snapshot, goal, history), snapshot.screenshotBase64(), DECISION_SCHEMA);
         BotDecision decision = parseDecision(answer);
         // the model sometimes finishes right after scrolling, the newly loaded posts would then never be extracted

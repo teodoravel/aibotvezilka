@@ -13,6 +13,10 @@ const statusColors: Record<SessionStatus, 'default' | 'info' | 'warning' | 'succ
   FAILED: 'error'
 };
 
+/**
+ * TODO(student): Show one session in detail: its targets, timestamps and the
+ * live agentic-loop trace (SessionLogViewer + useSessionDetails).
+ */
 const SessionDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();

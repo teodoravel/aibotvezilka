@@ -19,6 +19,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.springframework.stereotype.Component;
 
+// TODO(student): Replace this bean with an extractor for your assigned social network.
 /**
  * Extracts content from YouTube video pages: the video itself (its title and description, with the video
  * and its thumbnail as media) and every comment that is loaded on the page. Channel and hashtag pages only
@@ -34,6 +35,7 @@ public class YouTubeContentExtractor implements ContentExtractor {
 
     @Override
     public List<CreateExtractedPostDto> extract(PageSnapshot snapshot) {
+        // TODO(student): Implement ContentExtractor.extract().
         Matcher videoId = VIDEO_ID.matcher(snapshot.url() == null ? "" : snapshot.url());
         if (!videoId.find() || snapshot.domContent() == null) {
             return List.of();

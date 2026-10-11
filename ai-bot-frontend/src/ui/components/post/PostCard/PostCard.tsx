@@ -14,6 +14,12 @@ interface PostCardProps {
 // from this score on a post looks Macedonian enough to be donated (the backend uses the same limit)
 const DONATION_THRESHOLD = 0.5;
 
+/**
+ * TODO(student): Show the extracted post: author, content preview, source
+ * link, the Macedonian-language confidence, media thumbnails, and whether it
+ * is already part of a donation batch. Add navigation to /posts/{id} and a
+ * delete action (usePosts().onDelete).
+ */
 const PostCard = ({ post, onDelete }: PostCardProps) => {
   const navigate = useNavigate();
 

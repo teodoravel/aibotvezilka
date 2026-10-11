@@ -12,6 +12,11 @@ import mk.ukim.finki.aibotbackend.model.domain.ExtractionTarget;
 import mk.ukim.finki.aibotbackend.model.enums.SocialNetwork;
 import org.springframework.stereotype.Component;
 
+// TODO(student): Replace this bean with a bot for YOUR assigned social
+// network, e.g. {@code InstagramBot extends AbstractSocialNetworkBot}, and
+// implement {@link #network()}, {@link #login()} and
+// {@link #buildGoal(ExtractionTarget)}. Do not override
+// {@code execute(...)} — the loop is shared.
 /**
  * The bot for YouTube. Public channels, hashtags and videos can be read without an account, so there is
  * nothing to log in to. The search page is never used, because YouTube's robots.txt does not allow it
@@ -39,6 +44,7 @@ public class YouTubeBot extends AbstractSocialNetworkBot {
 
     @Override
     public SocialNetwork network() {
+        // TODO(student): Return your assigned social network.
         return SocialNetwork.YOUTUBE;
     }
 
@@ -48,6 +54,7 @@ public class YouTubeBot extends AbstractSocialNetworkBot {
      */
     @Override
     public void login() {
+        // TODO(student): Implement the network-specific login flow.
         browserAgent.navigateTo(YOUTUBE_URL);
         for (String button : List.of("Reject all", "Одбиј ги сите")) {
             try {
@@ -62,6 +69,7 @@ public class YouTubeBot extends AbstractSocialNetworkBot {
 
     @Override
     protected String buildGoal(ExtractionTarget target) {
+        // TODO(student): Build the extraction goal for a target.
         String value = target.getValue().strip();
         return switch (target.getType()) {
             case PROFILE -> listGoal("the YouTube channel " + value, channelUrl(value));

@@ -8,6 +8,8 @@ import SubmitDonationDialog from '../../../components/donation/SubmitDonationDia
 
 /**
  * The donation dashboard towards doniraj.vezilka.ai.
+ * TODO(student): Implement useDonations, DonationBatchCard and
+ * SubmitDonationDialog, plus overall donation statistics.
  */
 const DonationsPage = () => {
   const { donations, loading, onCreate, onApprove, onSubmit } = useDonations();

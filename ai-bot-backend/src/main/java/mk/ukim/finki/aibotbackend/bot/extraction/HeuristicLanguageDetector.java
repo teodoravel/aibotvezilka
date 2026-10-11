@@ -4,6 +4,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
+// TODO(student): Replace this bean with a real language detector.
 /**
  * Estimates how likely a text is Macedonian, without calling any external service.
  *
@@ -37,6 +38,7 @@ public class HeuristicLanguageDetector implements LanguageDetector {
 
     @Override
     public double macedonianConfidence(String text) {
+        // TODO(student): Implement LanguageDetector.macedonianConfidence().
         if (text == null || text.isBlank()) {
             return 0.0;
         }

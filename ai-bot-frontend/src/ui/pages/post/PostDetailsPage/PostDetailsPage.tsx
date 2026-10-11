@@ -11,6 +11,11 @@ import useSnackbar from '../../../../hooks/useSnackbar.ts';
 // from this score on a post looks Macedonian enough to be donated (the backend uses the same limit)
 const DONATION_THRESHOLD = 0.5;
 
+/**
+ * TODO(student): Show one extracted post in full: the complete content, its
+ * media items (images/videos), the source link, the language confidence and
+ * its donation status (postApi.findById).
+ */
 const PostDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();

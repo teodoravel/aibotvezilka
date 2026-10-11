@@ -5,8 +5,9 @@ import type { PageResponse, PostFilter, PostResponse } from '../api/types/post.t
 import useSnackbar from './useSnackbar.ts';
 
 /**
- * Loads one page of extracted posts for the PostsPage. The page is loaded again
- * whenever the filter or the page number changes, and after a post is deleted.
+ * TODO(student): Load a page of extracted posts (postApi.findAll) for the
+ * PostsPage, re-fetching whenever the filter or page changes, with
+ * loading/error state and a delete action (postApi.delete).
  */
 const usePosts = (filter: PostFilter, page: number, size: number) => {
   const { showSnackbar } = useSnackbar();

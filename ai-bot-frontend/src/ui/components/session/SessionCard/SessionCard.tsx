@@ -18,6 +18,11 @@ const statusColors: Record<SessionStatus, 'default' | 'info' | 'warning' | 'succ
   FAILED: 'error'
 };
 
+/**
+ * TODO(student): Extend this card — show the targets, the timestamps and a
+ * status-appropriate color, and disable start/stop according to the
+ * session's lifecycle (see SessionStatus).
+ */
 const SessionCard = ({ session }: SessionCardProps) => {
   const navigate = useNavigate();
   const { onStart, onStop } = useSessions();

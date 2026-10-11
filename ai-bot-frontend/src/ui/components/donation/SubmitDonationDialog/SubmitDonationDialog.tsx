@@ -20,6 +20,11 @@ const MIN_MACEDONIAN_CONFIDENCE = 0.5;
 const MIN_TEXT_LENGTH = 20;
 const MAX_POSTS = 100;
 
+/**
+ * TODO(student): Implement the "create donation batch" flow: let the user
+ * pick not-yet-donated posts (postApi.findAll with donated=false), review
+ * their content, and create the batch via useDonations().onCreate.
+ */
 const SubmitDonationDialog = ({ open, onClose, onCreate }: SubmitDonationDialogProps) => {
   const { showSnackbar } = useSnackbar();
 

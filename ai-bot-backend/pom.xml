@@ -121,6 +121,11 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-security</artifactId>
     </dependency>
+    <!--
+      TODO(student): Add the dependencies for YOUR implementation here, e.g.:
+        - a browser automation library (Playwright for Java or Selenium) for the BrowserAgent implementation
+        - an HTTP client / SDK for the LLM provider you use for the LlmClient implementation
+    -->
     <dependency>
       <groupId>org.seleniumhq.selenium</groupId>
       <artifactId>selenium-java</artifactId>

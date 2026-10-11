@@ -8,8 +8,9 @@ import useSnackbar from './useSnackbar.ts';
 const VERDICT_DELAY_MS = 2000;
 
 /**
- * Drives the donation workflow of the DonationsPage: the list of batches
- * and the create, approve and submit actions. The list is loaded again after every action.
+ * TODO(student): Drive the donation workflow for the DonationsPage: list the
+ * batches (donationApi.findAll) and expose create/approve/submit actions,
+ * re-fetching after every mutation, with loading/error state.
  */
 const useDonations = () => {
   const { showSnackbar } = useSnackbar();

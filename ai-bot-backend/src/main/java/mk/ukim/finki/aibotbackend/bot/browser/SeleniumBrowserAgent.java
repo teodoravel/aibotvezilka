@@ -25,6 +25,7 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.stereotype.Component;
 
+// TODO(student): Replace this bean with your Playwright/Selenium-backed implementation.
 /**
  * {@link BrowserAgent} backed by Selenium and Chrome.
  *
@@ -50,6 +51,7 @@ public class SeleniumBrowserAgent implements BrowserAgent {
 
     @Override
     public synchronized void start() {
+        // TODO(student): Implement BrowserAgent.start().
         if (driver != null) {
             return;
         }
@@ -66,6 +68,7 @@ public class SeleniumBrowserAgent implements BrowserAgent {
 
     @Override
     public void navigateTo(String url) {
+        // TODO(student): Implement BrowserAgent.navigateTo().
         String absoluteUrl = absolute(url.strip());
         log.debug("Navigating to {}", absoluteUrl);
         browser().navigate().to(absoluteUrl);
@@ -74,6 +77,7 @@ public class SeleniumBrowserAgent implements BrowserAgent {
 
     @Override
     public void click(String elementDescription) {
+        // TODO(student): Implement BrowserAgent.click().
         WebElement element = find(elementDescription, false);
         scrollIntoView(element);
         // links that open a new tab would leave the bot looking at the old one
@@ -89,6 +93,7 @@ public class SeleniumBrowserAgent implements BrowserAgent {
 
     @Override
     public void type(String elementDescription, String text) {
+        // TODO(student): Implement BrowserAgent.type().
         WebElement element = find(elementDescription, true);
         scrollIntoView(element);
 
@@ -110,17 +115,20 @@ public class SeleniumBrowserAgent implements BrowserAgent {
 
     @Override
     public void scrollDown() {
+        // TODO(student): Implement BrowserAgent.scrollDown().
         browser().executeScript("window.scrollBy(0, Math.round(window.innerHeight * 0.85));");
         pause(1500);
     }
 
     @Override
     public byte[] takeScreenshot() {
+        // TODO(student): Implement BrowserAgent.takeScreenshot().
         return browser().getScreenshotAs(OutputType.BYTES);
     }
 
     @Override
     public PageSnapshot snapshot() {
+        // TODO(student): Implement BrowserAgent.snapshot().
         ChromeDriver browser = browser();
         String domContent = (String) browser.executeScript(SNAPSHOT_SCRIPT, MAX_DOM_LENGTH);
         return new PageSnapshot(browser.getCurrentUrl(), browser.getTitle(), domContent, null);
@@ -128,6 +136,7 @@ public class SeleniumBrowserAgent implements BrowserAgent {
 
     @Override
     public synchronized void close() {
+        // TODO(student): Implement BrowserAgent.close().
         if (driver == null) {
             return;
         }

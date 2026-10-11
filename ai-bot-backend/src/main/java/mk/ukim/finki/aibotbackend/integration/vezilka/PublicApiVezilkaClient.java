@@ -21,6 +21,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+// TODO(student): Replace this bean with a real doniraj.vezilka.ai client.
 /**
  * {@link BatchVezilkaClient} that uses the Vezilka Public Donation API v1 with an API key.
  *
@@ -51,6 +52,7 @@ public class PublicApiVezilkaClient implements BatchVezilkaClient {
 
     @Override
     public DonationReceipt submitTextDonation(TextDonationRequest request) {
+        // TODO(student): Implement VezilkaClient.submitTextDonation().
         DonationReceipt receipt = receiptOf(donate(List.of(request)).getFirst());
         log.info("Donation \"{}\" submitted to Vezilka: {}", request.title(), receipt.message());
         return receipt;
@@ -95,6 +97,7 @@ public class PublicApiVezilkaClient implements BatchVezilkaClient {
 
     @Override
     public DonationStatus checkStatus(String vezilkaReference) {
+        // TODO(student): Implement VezilkaClient.checkStatus().
         if (vezilkaReference == null || vezilkaReference.isBlank()) {
             throw new VezilkaIntegrationException("The donation has no Vezilka reference to check.");
         }

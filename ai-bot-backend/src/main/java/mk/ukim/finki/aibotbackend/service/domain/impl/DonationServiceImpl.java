@@ -53,16 +53,20 @@ public class DonationServiceImpl implements DonationService {
 
     @Override
     public List<DonationBatch> findAll() {
+        // TODO(student): Implement DonationService.findAll().
         return donationBatchRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
     @Override
     public Optional<DonationBatch> findById(Long id) {
+        // TODO(student): Implement DonationService.findById().
         return donationBatchRepository.findById(id);
     }
 
     @Override
     public DonationBatch createBatch(List<Long> postIds) {
+        // TODO(student): Load the posts (extractedPostService.findAllById), create a
+        //  DRAFT batch, attach the posts to it and save everything.
         List<Long> ids = postIds.stream().distinct().toList();
         List<ExtractedPost> posts = extractedPostService.findAllById(ids);
         Set<Long> foundIds = posts.stream().map(ExtractedPost::getId).collect(Collectors.toSet());
@@ -83,6 +87,7 @@ public class DonationServiceImpl implements DonationService {
 
     @Override
     public DonationBatch approve(Long id) {
+        // TODO(student): Implement DonationService.approve().
         DonationBatch batch = findInStatus(id, DonationStatus.DRAFT);
         batch.setStatus(DonationStatus.APPROVED);
         return donationBatchRepository.save(batch);
@@ -90,6 +95,10 @@ public class DonationServiceImpl implements DonationService {
 
     @Override
     public DonationBatch submit(Long id) {
+        // TODO(student): Build a TextDonationRequest from the batch content, call
+        //  vezilkaClient.submitTextDonation, store the receipt reference, stamp
+        //  submittedAt, set the status to SUBMITTED and save. Consider publishing
+        //  a DonationBatchSubmittedEvent afterwards.
         // a FAILED batch can be sent again, texts that already reached Vezilka come back as duplicates
         DonationBatch batch = findInStatus(id, DonationStatus.APPROVED, DonationStatus.FAILED);
         List<TextDonationRequest> requests = batch.getPosts()
@@ -116,6 +125,8 @@ public class DonationServiceImpl implements DonationService {
 
     @Override
     public void refreshSubmittedStatuses() {
+        // TODO(student): For every batch in status SUBMITTED, call
+        //  vezilkaClient.checkStatus(batch.getVezilkaReference()) and update the status.
         for (DonationBatch batch : donationBatchRepository.findAllByStatus(DonationStatus.SUBMITTED)) {
             try {
                 DonationStatus status = vezilkaClient.checkStatus(batch.getVezilkaReference());

@@ -30,6 +30,11 @@ const describeReference = (reference: string) => {
     : reference;
 };
 
+/**
+ * TODO(student): Show the batch: number of posts, status, the Vezilka
+ * reference once submitted, and approve/submit actions
+ * (useDonations().onApprove / onSubmit) enabled according to the status.
+ */
 const DonationBatchCard = ({ batch, onApprove, onSubmit }: DonationBatchCardProps) => {
   const [busy, setBusy] = useState<boolean>(false);
 

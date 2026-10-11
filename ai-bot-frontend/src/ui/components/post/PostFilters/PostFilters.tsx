@@ -11,6 +11,11 @@ interface PostFiltersProps {
 
 const SEARCH_DELAY_MS = 400;
 
+/**
+ * TODO(student): Implement the filter bar for the content browser: session,
+ * minimum Macedonian confidence (slider), donated yes/no, and a free-text
+ * search over the content. Call onChange with the updated filter.
+ */
 const PostFilters = ({ filter, onChange }: PostFiltersProps) => {
   const [sessions, setSessions] = useState<SessionResponse[]>([]);
   const [search, setSearch] = useState<string>(filter.search ?? '');

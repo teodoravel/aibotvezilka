@@ -32,11 +32,13 @@ public class ExtractionSessionApplicationServiceImpl implements ExtractionSessio
 
     @Override
     public List<DisplayExtractionSessionDto> findAll() {
+        // TODO(student): Implement ExtractionSessionApplicationService.findAll().
         return DisplayExtractionSessionDto.from(extractionSessionService.findAll());
     }
 
     @Override
     public Optional<DisplayExtractionSessionDto> findById(Long id) {
+        // TODO(student): Implement ExtractionSessionApplicationService.findById().
         return extractionSessionService
             .findById(id)
             .map(DisplayExtractionSessionDto::from);
@@ -44,6 +46,8 @@ public class ExtractionSessionApplicationServiceImpl implements ExtractionSessio
 
     @Override
     public DisplayExtractionSessionDto create(CreateExtractionSessionDto createExtractionSessionDto) {
+        // TODO(student): Map the DTO to an entity (toExtractionSession), delegate to
+        //  the domain service and map the result back (DisplayExtractionSessionDto.from).
         ExtractionSession session = extractionSessionService.create(createExtractionSessionDto.toExtractionSession());
         return DisplayExtractionSessionDto.from(session);
     }
@@ -51,6 +55,11 @@ public class ExtractionSessionApplicationServiceImpl implements ExtractionSessio
     @Override
     @Transactional
     public DisplayExtractionSessionDto start(Long id) {
+        // TODO(student): Start the session via the domain service, then publish
+        //  new SessionStartedEvent(id) with applicationEventPublisher — the
+        //  SessionStartedListener picks it up and runs the bot asynchronously.
+        //  This method needs to run in a transaction for the AFTER_COMMIT
+        //  listener to fire (see jakarta.transaction.Transactional).
         ExtractionSession session = extractionSessionService.start(id);
         // the listener runs the bot only after this transaction commits
         applicationEventPublisher.publishEvent(new SessionStartedEvent(id));
@@ -59,6 +68,7 @@ public class ExtractionSessionApplicationServiceImpl implements ExtractionSessio
 
     @Override
     public DisplayExtractionSessionDto stop(Long id) {
+        // TODO(student): Implement ExtractionSessionApplicationService.stop().
         return DisplayExtractionSessionDto.from(extractionSessionService.stop(id));
     }
 

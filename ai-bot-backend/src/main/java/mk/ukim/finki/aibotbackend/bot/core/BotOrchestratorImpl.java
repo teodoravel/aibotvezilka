@@ -41,6 +41,16 @@ public class BotOrchestratorImpl implements BotOrchestrator {
      */
     @Override
     public synchronized void runSession(Long sessionId) {
+        // TODO(student): Orchestrate the full run:
+        //  1. socialNetworkBot.login()
+        //  2. for each target of the session:
+        //       socialNetworkBot.execute(target,
+        //           (action, successful) -> botActionLogService.log(session, action, successful))
+        //     then map the returned DTOs with CreateExtractedPostDto.toExtractedPost(session)
+        //     and persist them with extractedPostService.saveAll(...)
+        //  3. mark the session COMPLETED via extractionSessionService.complete(sessionId),
+        //     or FAILED via extractionSessionService.fail(sessionId) when something goes wrong
+        //  4. always socialNetworkBot.shutdown() at the end
         ExtractionSession session = extractionSessionService
             .findById(sessionId)
             .orElseThrow(() -> new SessionNotFoundException(sessionId));

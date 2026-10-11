@@ -7,8 +7,10 @@ import useSnackbar from './useSnackbar.ts';
 const POLL_INTERVAL_MS = 3000;
 
 /**
- * Loads one session together with the log of what the bot did in it.
- * While the session is RUNNING both are loaded again every few seconds, so the trace updates live.
+ * TODO(student): Load one session (sessionApi.findById) together with its
+ * action logs (sessionApi.findLogs) for the SessionDetailsPage, including
+ * loading/error state. Consider polling the logs while the session is RUNNING
+ * so the trace updates live.
  */
 const useSessionDetails = (id: string) => {
   const { showSnackbar } = useSnackbar();

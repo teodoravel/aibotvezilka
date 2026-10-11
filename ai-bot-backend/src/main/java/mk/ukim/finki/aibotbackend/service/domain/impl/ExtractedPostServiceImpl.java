@@ -25,6 +25,9 @@ public class ExtractedPostServiceImpl implements ExtractedPostService {
 
     @Override
     public Page<ExtractedPost> findAll(PostFilterDto filter, int page, int size) {
+        // TODO(student): Combine the non-null filter fields into a query, e.g.
+        //  with JPA Specifications (ExtractedPostRepository already extends
+        //  JpaSpecificationExecutor).
         PageRequest pageRequest = PageRequest.of(
             Math.max(page, 0),
             Math.clamp(size, 1, MAX_PAGE_SIZE),
@@ -35,21 +38,25 @@ public class ExtractedPostServiceImpl implements ExtractedPostService {
 
     @Override
     public Optional<ExtractedPost> findById(Long id) {
+        // TODO(student): Implement ExtractedPostService.findById().
         return extractedPostRepository.findById(id);
     }
 
     @Override
     public List<ExtractedPost> findAllById(List<Long> ids) {
+        // TODO(student): Implement ExtractedPostService.findAllById().
         return extractedPostRepository.findAllById(ids);
     }
 
     @Override
     public List<ExtractedPost> saveAll(List<ExtractedPost> posts) {
+        // TODO(student): Implement ExtractedPostService.saveAll().
         return extractedPostRepository.saveAll(posts);
     }
 
     @Override
     public Optional<ExtractedPost> deleteById(Long id) {
+        // TODO(student): Implement ExtractedPostService.deleteById().
         Optional<ExtractedPost> post = extractedPostRepository.findById(id);
         post.ifPresent(found -> {
             // a donated post stays, so its donation batch keeps the content that was sent

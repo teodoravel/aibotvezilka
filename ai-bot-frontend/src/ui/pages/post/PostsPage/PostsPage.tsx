@@ -9,6 +9,8 @@ const PAGE_SIZE = 12;
 
 /**
  * The extracted-content browser.
+ * TODO(student): Implement usePosts, PostFilters and PostCard, and add
+ * pagination controls (the backend endpoint is already paged).
  */
 const PostsPage = () => {
   const [filter, setFilter] = useState<PostFilter>({});

@@ -30,6 +30,12 @@ const targetTypes: TargetTypeOption[] = [
 
 const emptyTarget: CreateTargetRequest = { type: 'PROFILE', value: '' };
 
+/**
+ * TODO(student): Implement the "new extraction session" form: a select for
+ * the social network (your assigned one), a description field, and a dynamic
+ * list of targets (type + value). Submit it via useSessions().onCreate and
+ * close the dialog on success.
+ */
 const StartSessionDialog = ({ open, onClose }: StartSessionDialogProps) => {
   const { onCreate } = useSessions();
 

@@ -16,6 +16,11 @@ interface Dashboard {
   latestSession: SessionResponse | null;
 }
 
+/**
+ * TODO(student): Turn this into a small dashboard: total extracted posts,
+ * posts above your Macedonian-confidence threshold, donated pages, and the
+ * status of the latest extraction session.
+ */
 const HomePage = () => {
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
@@ -54,7 +59,7 @@ const HomePage = () => {
     <Box sx={{ m: 0, p: 0 }}>
       <Container maxWidth='xl' sx={{ mt: 3, py: 3 }}>
         <Typography variant='h4' gutterBottom>
-          AI Bot for doniraj.vezilka.ai
+          AI Bot for doniraj.vezilka.ai 🤖
         </Typography>
         <Typography variant='body1' sx={{ mb: 4 }}>
           This bot navigates a social network, extracts Macedonian content and
