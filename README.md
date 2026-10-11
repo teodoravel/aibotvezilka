@@ -11,6 +11,32 @@ the platform for preserving the Macedonian language.
 компајлира и се стартува веднаш — вашата задача е да ги имплементирате местата
 означени со `TODO(student)`.
 
+## Implementation: YouTube
+
+In this repository the template is implemented for **YouTube**.
+
+- **Browser:** Selenium with Chrome. It runs headless, `bot.headless=false` shows the window.
+- **LLM:** Google Gemini (`gemini-3.5-flash-lite`) over its REST API.
+- **Targets:** a channel (`@handle`), a hashtag, a keyword or a link to a video. A keyword is opened
+  as a hashtag page, because robots.txt does not allow bots on the YouTube search. At most 3 videos
+  are opened for each target. No account is used, only public pages.
+- **Extraction:** on a video page the title with the description is saved as one post, and every
+  loaded comment as a separate post, each with its own link.
+- **Language:** a post gets a score from 0 to 1 by its share of Cyrillic text and by the letters and
+  frequent words that tell Macedonian from Serbian, Bulgarian and Russian.
+- **Donations:** posts with a score of 0.5 or more are picked in the Donations page, and an approved
+  batch is sent to the Vezilka Public Donation API in one request.
+
+Chrome has to be installed. The keys are read from `ai-bot-backend/.env`, which is not in git:
+
+```
+JWT_SECRET_KEY=...
+VEZILKA_API_KEY=...
+GEMINI_API_KEY=...
+```
+
+After that the application is started as described in *Getting started*.
+
 ## Architecture
 
 The project follows the course reference architecture (`emc-2026` / e-shop):
