@@ -1,30 +1,47 @@
-import { Button, Card, CardActions, CardContent, Chip, Typography } from '@mui/material';
+import { Box, Button, Card, CardActions, CardContent, Typography } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import InfoIcon from '@mui/icons-material/Info';
 import { useNavigate } from 'react-router';
 import type { SessionResponse } from '../../../../api/types/session.ts';
 import useSessions from '../../../../hooks/useSessions.ts';
+import SessionStatusChip from '../SessionStatusChip/SessionStatusChip.tsx';
 
 interface SessionCardProps {
   session: SessionResponse;
 }
 
-/**
- * TODO(student): Extend this card — show the targets, the timestamps and a
- * status-appropriate color, and disable start/stop according to the
- * session's lifecycle (see SessionStatus).
- */
 const SessionCard = ({ session }: SessionCardProps) => {
   const navigate = useNavigate();
   const { onStart, onStop } = useSessions();
 
+  // CREATED -> RUNNING -> (PAUSED -> RUNNING)* -> COMPLETED | FAILED
+  const canStart = session.status === 'CREATED' || session.status === 'PAUSED';
+  const canStop = session.status === 'RUNNING';
+
   return (
     <Card sx={{ maxWidth: 300, height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Typography variant='h5'>{session.socialNetwork}</Typography>
-        <Typography variant='subtitle1' sx={{ flexGrow: 1 }}>{session.description}</Typography>
-        <Chip label={session.status} size='small' sx={{ alignSelf: 'flex-start' }}/>
+        <Typography variant='subtitle1'>{session.description}</Typography>
+        <Box sx={{ flexGrow: 1 }}>
+          {session.targets.map((target) => (
+            <Typography key={target.id} variant='body2' color='text.secondary' noWrap title={target.value}>
+              {target.type}: {target.value}
+            </Typography>
+          ))}
+        </Box>
+        {session.startedAt && (
+          <Typography variant='caption' color='text.secondary'>
+            Started: {new Date(session.startedAt).toLocaleString()}
+          </Typography>
+        )}
+        {session.finishedAt && (
+          <Typography variant='caption' color='text.secondary'>
+            Finished: {new Date(session.finishedAt).toLocaleString()}
+          </Typography>
+        )}
+        <SessionStatusChip status={session.status}/>
       </CardContent>
       <CardActions sx={{ justifyContent: 'space-between' }}>
         <Button
@@ -36,6 +53,7 @@ const SessionCard = ({ session }: SessionCardProps) => {
         <Button
           startIcon={<PlayArrowIcon/>}
           color='success'
+          disabled={!canStart}
           onClick={() => onStart(session.id)}
         >
           Start
@@ -43,6 +61,7 @@ const SessionCard = ({ session }: SessionCardProps) => {
         <Button
           startIcon={<StopIcon/>}
           color='error'
+          disabled={!canStop}
           onClick={() => onStop(session.id)}
         >
           Stop

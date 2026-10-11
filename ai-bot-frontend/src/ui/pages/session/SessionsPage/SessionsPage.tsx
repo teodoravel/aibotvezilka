@@ -6,8 +6,8 @@ import SessionCard from '../../../components/session/SessionCard/SessionCard.tsx
 import StartSessionDialog from '../../../components/session/StartSessionDialog/StartSessionDialog.tsx';
 
 /**
- * The bot control panel. The data flow (useSessions -> SessionCard) is
- * provided; TODO(student): finish StartSessionDialog and SessionCard.
+ * The bot control panel: the extraction sessions (useSessions -> SessionCard)
+ * and the dialog for creating a new one.
  */
 const SessionsPage = () => {
   const { sessions, loading } = useSessions();
