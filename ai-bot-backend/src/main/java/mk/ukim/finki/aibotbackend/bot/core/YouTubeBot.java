@@ -91,7 +91,8 @@ public class YouTubeBot extends AbstractSocialNetworkBot {
         return """
             Collect public Macedonian texts from %s. Start at %s and open its videos one at a time, at most %d, \
             newest first. Open each video with NAVIGATE to its link, never open the same video twice. \
-            After each video go back to %s for the next one, and FINISH when %d different videos are done.
+            After each video go back to %s for the next one, and FINISH only when posts are extracted \
+            on %d different video pages.
             %s
             Never use the YouTube search.""".formatted(what, url, VIDEOS_PER_TARGET, url, VIDEOS_PER_TARGET, ON_A_VIDEO_PAGE);
     }

@@ -52,9 +52,9 @@ public class GeminiLlmClient implements LlmClient {
         You control a web browser for a bot that collects public Macedonian-language posts from a social network \
         and donates them to doniraj.vezilka.ai, a platform that preserves the Macedonian language.
 
-        On every step you get the goal, the actions done so far and the text of the current page. \
-        Its first line tells how far the page is scrolled. The elements you can use are written as \
-        [number tag "label" link].
+        On every step you get the goal, the last actions, the list of all pages opened so far and the text \
+        of the current page. Its first line tells how far the page is scrolled. The elements you can use are \
+        written as [number tag "label" link].
 
         Reply with the single next action:
         - NAVIGATE: open a page, target = the full URL
@@ -73,6 +73,8 @@ public class GeminiLlmClient implements LlmClient {
         - Close cookie and consent dialogs by rejecting the optional cookies.
         - Only read public content. Never post, like, comment, follow, subscribe or send messages.
         - If an action did not change anything, do not repeat it. Try something else or FINISH.
+        - The list of opened pages is exact. When the goal asks for a number of pages, count them in that list \
+        and not from memory, and do not open a page again when its posts are already extracted.
         - Set goalReached to true only when the goal is done.
         Write the reasoning as one short English sentence.
         """;
@@ -145,11 +147,40 @@ public class GeminiLlmClient implements LlmClient {
             prompt.append('\n');
         }
         return prompt
+            .append('\n').append(describePages(history))
             .append("\nCURRENT PAGE\n")
             .append("URL: ").append(snapshot.url()).append('\n')
             .append("TITLE: ").append(snapshot.title()).append('\n')
             .append(textOf(snapshot.domContent()))
             .toString();
+    }
+
+    /**
+     * The model sees only the last actions and it miscounts them, so every page it opened with NAVIGATE
+     * is listed for it, together with whether posts were already extracted there.
+     */
+    private static String describePages(List<BotAction> history) {
+        Map<String, Boolean> pages = new LinkedHashMap<>();
+        String currentPage = null;
+        for (BotAction action : history) {
+            if (action.type() == BotActionType.NAVIGATE && action.target() != null) {
+                currentPage = action.target().strip();
+                pages.putIfAbsent(currentPage, false);
+            } else if (action.type() == BotActionType.EXTRACT && currentPage != null) {
+                pages.put(currentPage, true);
+            }
+        }
+
+        StringBuilder list = new StringBuilder("PAGES OPENED SO FAR:\n");
+        if (pages.isEmpty()) {
+            list.append("none\n");
+        }
+        pages.forEach((url, extracted) -> list
+            .append("- ").append(url)
+            .append(extracted ? " (posts extracted)" : " (nothing extracted)")
+            .append('\n'));
+        long extractedPages = pages.values().stream().filter(extracted -> extracted).count();
+        return list.append("PAGES WITH EXTRACTED POSTS: ").append(extractedPages).append('\n').toString();
     }
 
     /**

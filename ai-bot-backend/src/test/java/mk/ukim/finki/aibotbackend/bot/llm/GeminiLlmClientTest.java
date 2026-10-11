@@ -86,6 +86,28 @@ public class GeminiLlmClientTest {
     }
 
     @Test
+    void testOpenedPagesAreListedForTheModel() {
+        server.expect(requestTo(URL))
+            .andExpect(content().string(containsString("- https://www.youtube.com/@test (nothing extracted)")))
+            .andExpect(content().string(containsString("- https://www.youtube.com/watch?v=1 (posts extracted)")))
+            .andExpect(content().string(containsString("PAGES WITH EXTRACTED POSTS: 1")))
+            .andRespond(withSuccess(answer("""
+                {"action": "NAVIGATE", "target": "https://www.youtube.com/@test", "reasoning": "Next video.", "goalReached": false}
+                """), MediaType.APPLICATION_JSON));
+
+        List<BotAction> history = List.of(
+            new BotAction(BotActionType.NAVIGATE, "https://www.youtube.com/@test", null, "Open the channel."),
+            new BotAction(BotActionType.NAVIGATE, "https://www.youtube.com/watch?v=1", null, "Open the first video."),
+            new BotAction(BotActionType.EXTRACT, null, null, "Posts are visible."),
+            new BotAction(BotActionType.SCROLL, null, null, "Load the comments."),
+            new BotAction(BotActionType.EXTRACT, null, null, "Comments are visible.")
+        );
+        llmClient.decideNextAction(SNAPSHOT, "Собери објави од 3 видеа", history);
+
+        server.verify();
+    }
+
+    @Test
     void testUnknownActionIsRejected() {
         server.expect(requestTo(URL))
             .andRespond(withSuccess(answer("""
