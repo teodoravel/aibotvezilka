@@ -1,0 +1,199 @@
+/* The look of the application: colors of Macedonian embroidery (linen, red and gold) over the default MUI style. */
+:root {
+    --linen: #f7f1e6;
+    --paper: #fffdf9;
+    --sand: #ece3d1;
+    --line: #e5dac6;
+    --ink: #2c2523;
+    --red: #a51d21;
+    --red-dark: #84161a;
+    --gold: #c9982f;
+    --green: #4d7a4a;
+    --green-dark: #3b6039;
+    --ochre: #9a6f14;
+    --terracotta: #b5632a;
+    --slate: #46626e;
+    --text-font: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    --heading-font: 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+}
+
+body {
+    background-color: var(--linen);
+    color: var(--ink);
+    font-family: var(--text-font);
+}
+
+/* MUI styles every component with one class, so "body" in front is enough for the rules below to win */
+body [class*='Mui'] {
+    font-family: var(--text-font);
+}
+
+body .MuiTypography-h4,
+body .MuiTypography-h5,
+body .MuiTypography-h6 {
+    font-family: var(--heading-font);
+}
+
+/* header */
+body .MuiAppBar-root {
+    --AppBar-background: var(--red);
+    box-shadow: none;
+}
+
+/* the lower edge of the header is cut in a zigzag with a gold trim, like the edge of an embroidered cloth */
+body .MuiAppBar-root::after {
+    content: '';
+    height: 10px;
+    background:
+        linear-gradient(135deg, var(--red) 25%, transparent 25%) 0 0 / 14px 14px repeat-x,
+        linear-gradient(225deg, var(--red) 25%, transparent 25%) 0 0 / 14px 14px repeat-x,
+        linear-gradient(var(--gold), var(--gold)) 0 0 / 100% 3px no-repeat,
+        linear-gradient(135deg, var(--gold) 25%, transparent 25%) 0 3px / 14px 14px repeat-x,
+        linear-gradient(225deg, var(--gold) 25%, transparent 25%) 0 3px / 14px 14px repeat-x,
+        var(--linen);
+}
+
+/* cards, tiles and the login and register forms */
+body .MuiPaper-elevation1,
+body .MuiPaper-elevation3 {
+    background-color: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: none;
+}
+
+body .MuiDialog-paper,
+body .MuiMenu-paper,
+body .MuiDrawer-paper {
+    background-color: var(--paper);
+    color: var(--ink);
+}
+
+body .MuiDialog-paper {
+    border-radius: 10px;
+}
+
+/* buttons: red, and green for the ones that start something */
+body .MuiButton-root {
+    --tone: var(--red);
+    --tone-dark: var(--red-dark);
+    border-radius: 6px;
+    box-shadow: none;
+}
+
+body .MuiButton-colorSuccess {
+    --tone: var(--green);
+    --tone-dark: var(--green-dark);
+}
+
+/* the plain actions on a card are dark, so the color stays for the ones that change something */
+body .MuiCardActions-root .MuiButton-colorPrimary {
+    --tone: var(--ink);
+}
+
+body .MuiButton-root:not(.MuiButton-colorInherit) {
+    --variant-textColor: var(--tone);
+    --variant-outlinedColor: var(--tone);
+    --variant-outlinedBorder: color-mix(in srgb, var(--tone) 50%, transparent);
+    --variant-containedBg: var(--tone);
+}
+
+body .MuiButton-root:not(.MuiButton-colorInherit):hover {
+    --variant-textBg: color-mix(in srgb, var(--tone) 6%, transparent);
+    --variant-outlinedBg: color-mix(in srgb, var(--tone) 6%, transparent);
+    --variant-outlinedBorder: var(--tone);
+    --variant-containedBg: var(--tone-dark);
+}
+
+/* status labels: one color for each meaning, filled or only outlined */
+body .MuiChip-colorDefault {
+    background-color: var(--sand);
+    border-color: #d3c6ad;
+}
+
+body .MuiChip-colorPrimary,
+body .MuiChip-colorError {
+    --tone: var(--red);
+}
+
+body .MuiChip-colorSecondary {
+    --tone: var(--slate);
+}
+
+body .MuiChip-colorSuccess {
+    --tone: var(--green);
+}
+
+body .MuiChip-colorInfo {
+    --tone: var(--ochre);
+}
+
+body .MuiChip-colorWarning {
+    --tone: var(--terracotta);
+}
+
+body .MuiChip-filled:not(.MuiChip-colorDefault) {
+    background-color: var(--tone);
+}
+
+body .MuiChip-outlined:not(.MuiChip-colorDefault) {
+    color: var(--tone);
+    border-color: var(--tone);
+}
+
+body .MuiSvgIcon-colorSuccess {
+    color: var(--green);
+}
+
+body .MuiSvgIcon-colorError {
+    color: var(--red);
+}
+
+/* form fields */
+body .MuiOutlinedInput-root {
+    background-color: var(--paper);
+    border-radius: 6px;
+}
+
+body .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+    border-color: var(--red);
+}
+
+body .MuiInputLabel-root.Mui-focused,
+body .MuiCheckbox-root.Mui-checked,
+body .MuiSlider-root,
+body .MuiCircularProgress-root,
+body .MuiLink-root {
+    color: var(--red);
+}
+
+body .MuiLink-root {
+    text-decoration-color: color-mix(in srgb, var(--red) 40%, transparent);
+}
+
+body .MuiSlider-thumb:hover,
+body .MuiSlider-thumb.Mui-focusVisible,
+body .MuiSlider-thumb.Mui-active {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--red) 16%, transparent);
+}
+
+body .MuiMenuItem-root.Mui-selected,
+body .MuiMenuItem-root.Mui-selected:hover {
+    background-color: color-mix(in srgb, var(--red) 10%, transparent);
+}
+
+body .MuiPaginationItem-root.Mui-selected,
+body .MuiPaginationItem-root.Mui-selected:hover {
+    background-color: var(--red);
+    color: #fff;
+}
+
+/* tables */
+body .MuiTableCell-root {
+    border-bottom-color: var(--line);
+}
+
+body .MuiTableCell-head {
+    font-weight: 600;
+}
