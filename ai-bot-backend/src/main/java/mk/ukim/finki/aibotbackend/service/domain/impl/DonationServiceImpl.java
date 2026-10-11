@@ -162,7 +162,7 @@ public class DonationServiceImpl implements DonationService {
 
     private static TextDonationRequest toDonationRequest(ExtractedPost post) {
         String networkName = displayName(post.getSession().getSocialNetwork());
-        String title = post.getAuthorHandle() == null ? networkName : networkName + " — " + post.getAuthorHandle();
+        String title = post.getAuthorHandle() == null ? networkName : networkName + " - " + post.getAuthorHandle();
         return new TextDonationRequest(title, post.getContent().strip(), post.getSourceUrl());
     }
 

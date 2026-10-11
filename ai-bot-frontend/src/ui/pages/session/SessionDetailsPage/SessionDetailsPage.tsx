@@ -29,7 +29,7 @@ const SessionDetailsPage = () => {
       {session &&
        <>
          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-           <Typography variant='h5'>Session #{id} — {session.socialNetwork}</Typography>
+           <Typography variant='h5'>Session #{id} - {session.socialNetwork}</Typography>
            <SessionStatusChip status={session.status}/>
          </Box>
          {session.description && (

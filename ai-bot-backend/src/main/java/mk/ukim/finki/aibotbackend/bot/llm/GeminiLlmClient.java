@@ -214,7 +214,7 @@ public class GeminiLlmClient implements LlmClient {
                 .orElse("");
         }
         label = label.replaceAll("\\s+", " ").strip();
-        return label.length() <= MAX_LABEL_LENGTH ? label : label.substring(0, MAX_LABEL_LENGTH) + "…";
+        return label.length() <= MAX_LABEL_LENGTH ? label : label.substring(0, MAX_LABEL_LENGTH) + "...";
     }
 
     private String generate(String systemPrompt, String userPrompt, String screenshotBase64, Map<String, Object> responseSchema) {

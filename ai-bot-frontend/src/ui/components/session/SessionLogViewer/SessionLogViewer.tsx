@@ -20,6 +20,18 @@ const actionColors: Record<BotActionType, 'default' | 'primary' | 'secondary' | 
   FINISH: 'info'
 };
 
+// the backend joins the target of an action and the reasoning with a long dash, or sends the reasoning only
+const DETAILS_SEPARATOR = ' — ';
+
+const splitDetails = (details: string | null) => {
+  const text = details ?? '';
+  const index = text.indexOf(DETAILS_SEPARATOR);
+
+  return index < 0
+    ? { target: null, reasoning: text }
+    : { target: text.slice(0, index), reasoning: text.slice(index + DETAILS_SEPARATOR.length) };
+};
+
 const SessionLogViewer = ({ logs }: SessionLogViewerProps) => {
   if (logs.length === 0) {
     return (
@@ -42,21 +54,30 @@ const SessionLogViewer = ({ logs }: SessionLogViewerProps) => {
           </TableRow>
         </TableHead>
         <TableBody>
-          {logs.map((log, index) => (
-            <TableRow key={log.id}>
-              <TableCell>{index + 1}</TableCell>
-              <TableCell sx={{ whiteSpace: 'nowrap' }}>{new Date(log.occurredAt).toLocaleTimeString()}</TableCell>
-              <TableCell>
-                <Chip label={log.actionType} size='small' variant='outlined' color={actionColors[log.actionType]}/>
-              </TableCell>
-              <TableCell sx={{ wordBreak: 'break-word' }}>{log.details}</TableCell>
-              <TableCell align='center'>
-                {log.successful
-                  ? <CheckCircleIcon color='success' fontSize='small'/>
-                  : <ErrorIcon color='error' fontSize='small'/>}
-              </TableCell>
-            </TableRow>
-          ))}
+          {logs.map((log, index) => {
+            const { target, reasoning } = splitDetails(log.details);
+
+            return (
+              <TableRow key={log.id}>
+                <TableCell>{index + 1}</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>{new Date(log.occurredAt).toLocaleTimeString()}</TableCell>
+                <TableCell>
+                  <Chip label={log.actionType} size='small' variant='outlined' color={actionColors[log.actionType]}/>
+                </TableCell>
+                <TableCell sx={{ wordBreak: 'break-word' }}>
+                  {target && (
+                    <Typography variant='body2' color='text.secondary'>{target}</Typography>
+                  )}
+                  <Typography variant='body2'>{reasoning}</Typography>
+                </TableCell>
+                <TableCell align='center'>
+                  {log.successful
+                    ? <CheckCircleIcon color='success' fontSize='small'/>
+                    : <ErrorIcon color='error' fontSize='small'/>}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </TableContainer>
