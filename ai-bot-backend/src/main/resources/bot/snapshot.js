@@ -48,9 +48,13 @@ function attributesOf(element, botId) {
     return result;
 }
 
-function render(node) {
+function render(node, keepLineBreaks) {
     if (node.nodeType === Node.TEXT_NODE) {
-        return escapeText(node.textContent.replace(/\s+/g, ' '));
+        // text that is shown with its line breaks (descriptions, comments) keeps them, other whitespace is collapsed
+        const text = keepLineBreaks
+            ? node.textContent.replace(/[^\S\n]+/g, ' ')
+            : node.textContent.replace(/\s+/g, ' ');
+        return escapeText(text);
     }
     if (node.nodeType !== Node.ELEMENT_NODE || SKIPPED_TAGS.has(node.tagName)) {
         return '';
@@ -73,13 +77,14 @@ function render(node) {
         node.setAttribute('data-bot-id', botId);
     }
 
+    const showsLineBreaks = style.whiteSpace.startsWith('pre') || style.whiteSpace === 'break-spaces';
     let children = '';
     for (const child of node.childNodes) {
-        children += render(child);
+        children += render(child, showsLineBreaks);
     }
     if (node.shadowRoot) {
         for (const child of node.shadowRoot.childNodes) {
-            children += render(child);
+            children += render(child, showsLineBreaks);
         }
     }
 
@@ -98,7 +103,7 @@ function render(node) {
 }
 
 const header = `<!-- scroll ${Math.round(window.scrollY)} of ${document.documentElement.scrollHeight}px -->\n`;
-let content = render(document.body).replace(/\n\s*\n+/g, '\n').trim();
+let content = render(document.body, false).replace(/\n\s*\n+/g, '\n').trim();
 if (content.length > maxLength) {
     content = content.slice(0, maxLength) + '\n<!-- truncated -->';
 }

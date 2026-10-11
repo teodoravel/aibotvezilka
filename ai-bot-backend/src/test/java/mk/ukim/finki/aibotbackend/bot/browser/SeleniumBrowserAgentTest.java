@@ -49,6 +49,11 @@ public class SeleniumBrowserAgentTest {
     }
 
     @Test
+    void testSnapshotKeepsLineBreaksOfTextShownInLines() {
+        assertThat(browserAgent.snapshot().domContent()).contains("Прв ред на описот.\nВтор ред на описот.");
+    }
+
+    @Test
     void testClickByVisibleText() {
         browserAgent.click("Прикажи повеќе");
 
