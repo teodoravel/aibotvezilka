@@ -1,9 +1,17 @@
 import { Box, Button, Chip, CircularProgress, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useNavigate, useParams } from 'react-router';
+import type { SessionStatus } from '../../../../api/types/session.ts';
 import useSessionDetails from '../../../../hooks/useSessionDetails.ts';
 import SessionLogViewer from '../../../components/session/SessionLogViewer/SessionLogViewer.tsx';
-import SessionStatusChip from '../../../components/session/SessionStatusChip/SessionStatusChip.tsx';
+
+const statusColors: Record<SessionStatus, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
+  CREATED: 'default',
+  RUNNING: 'info',
+  PAUSED: 'warning',
+  COMPLETED: 'success',
+  FAILED: 'error'
+};
 
 const SessionDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,7 +38,7 @@ const SessionDetailsPage = () => {
        <>
          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
            <Typography variant='h5'>Session #{id} - {session.socialNetwork}</Typography>
-           <SessionStatusChip status={session.status}/>
+           <Chip label={session.status} size='small' color={statusColors[session.status]}/>
          </Box>
          {session.description && (
            <Typography sx={{ mb: 1 }}>{session.description}</Typography>

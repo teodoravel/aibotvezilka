@@ -1,15 +1,22 @@
-import { Box, Button, Card, CardActions, CardContent, Typography } from '@mui/material';
+import { Box, Button, Card, CardActions, CardContent, Chip, Typography } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import InfoIcon from '@mui/icons-material/Info';
 import { useNavigate } from 'react-router';
-import type { SessionResponse } from '../../../../api/types/session.ts';
+import type { SessionResponse, SessionStatus } from '../../../../api/types/session.ts';
 import useSessions from '../../../../hooks/useSessions.ts';
-import SessionStatusChip from '../SessionStatusChip/SessionStatusChip.tsx';
 
 interface SessionCardProps {
   session: SessionResponse;
 }
+
+const statusColors: Record<SessionStatus, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
+  CREATED: 'default',
+  RUNNING: 'info',
+  PAUSED: 'warning',
+  COMPLETED: 'success',
+  FAILED: 'error'
+};
 
 const SessionCard = ({ session }: SessionCardProps) => {
   const navigate = useNavigate();
@@ -41,7 +48,12 @@ const SessionCard = ({ session }: SessionCardProps) => {
             Finished: {new Date(session.finishedAt).toLocaleString()}
           </Typography>
         )}
-        <SessionStatusChip status={session.status}/>
+        <Chip
+          label={session.status}
+          size='small'
+          color={statusColors[session.status]}
+          sx={{ alignSelf: 'flex-start' }}
+        />
       </CardContent>
       <CardActions sx={{ justifyContent: 'space-between' }}>
         <Button
