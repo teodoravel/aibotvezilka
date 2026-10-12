@@ -47,6 +47,7 @@ public class GeminiLlmClient implements LlmClient {
         "a", "span", "b", "i", "em", "strong", "small", "label", "time", "button", "abbr", "code"
     );
     private static final Pattern RETRY_DELAY = Pattern.compile("\"retryDelay\"\\s*:\\s*\"(\\d+)");
+    private static final String FINISH_CHECK = "Finish was asked, check the goal first. Pages with extracted posts so far: ";
 
     private static final String DECISION_PROMPT = """
         You control a web browser for a bot that collects public Macedonian-language posts from a social network \
@@ -68,13 +69,16 @@ public class GeminiLlmClient implements LlmClient {
 
         Rules:
         - Use only element numbers from the current page.
-        - EXTRACT when posts with Macedonian text are visible, then SCROLL to load new ones. \
-        Do not extract the same view twice in a row.
+        - When the goal gives exact steps for a page, follow them. Otherwise EXTRACT when posts with \
+        Macedonian text are visible, then SCROLL to load new ones.
+        - Do not extract the same view twice in a row.
         - Close cookie and consent dialogs by rejecting the optional cookies.
         - Only read public content. Never post, like, comment, follow, subscribe or send messages.
         - If an action did not change anything, do not repeat it. Try something else or FINISH.
-        - The list of opened pages is exact. When the goal asks for a number of pages, count them in that list \
-        and not from memory, and do not open a page again when its posts are already extracted.
+        - The number in the line PAGES WITH EXTRACTED POSTS and the pages listed under it are exact. \
+        Read numbers from there and do not count from memory. Do not open a page from that list again.
+        - When the last action says that finish was asked, compare its number with the goal. \
+        FINISH again only if the goal is really done, otherwise go on with the next page.
         - Set goalReached to true only when the goal is done.
         Write the reasoning as one short English sentence.
         """;
@@ -115,14 +119,46 @@ public class GeminiLlmClient implements LlmClient {
         // TODO(student): Implement LlmClient.decideNextAction().
         String answer = generate(DECISION_PROMPT, describe(snapshot, goal, history), snapshot.screenshotBase64(), DECISION_SCHEMA);
         BotDecision decision = parseDecision(answer);
-        // the model sometimes finishes right after scrolling, the newly loaded posts would then never be extracted
-        boolean finishes = decision.goalReached() || decision.action().type() == BotActionType.FINISH;
-        if (finishes && !history.isEmpty() && history.getLast().type() == BotActionType.SCROLL) {
-            BotAction extract = new BotAction(BotActionType.EXTRACT, null, null, "Extract what the last scroll loaded before finishing.");
-            decision = new BotDecision(extract, false, decision.rationale());
+        BotActionType type = decision.action().type();
+        BotAction lastAction = history.isEmpty() ? null : history.getLast();
+        boolean finishes = decision.goalReached() || type == BotActionType.FINISH;
+        boolean leaves = finishes || type == BotActionType.NAVIGATE;
+        if (leaves && lastAction != null && lastAction.type() == BotActionType.SCROLL) {
+            // the model sometimes leaves a page right after scrolling, the newly loaded posts would then never be extracted
+            decision = replaced(decision, BotActionType.EXTRACT, "Extract what the last scroll loaded before leaving the page.");
+        } else if (finishes && !isFinishCheck(lastAction)) {
+            // the model sometimes miscounts and finishes too early, so it has to say it again with the real number in front of it
+            long extractedPages = pagesOf(history).values().stream().filter(page -> page.extracted).count();
+            decision = replaced(decision, BotActionType.WAIT, FINISH_CHECK + extractedPages + ".");
+        } else if (!leaves && type == BotActionType.EXTRACT && !scrolledOnThisPage(history)) {
+            // posts further down a page are loaded only when it is scrolled, so that comes before the first extraction
+            decision = replaced(decision, BotActionType.SCROLL, "Scroll before the first extraction, so that more posts are loaded.");
         }
         log.debug("Decided {} {} ({})", decision.action().type(), decision.action().target(), decision.rationale());
         return decision;
+    }
+
+    private static BotDecision replaced(BotDecision decision, BotActionType type, String reasoning) {
+        return new BotDecision(new BotAction(type, null, null, reasoning), false, decision.rationale());
+    }
+
+    private static boolean isFinishCheck(BotAction action) {
+        return action != null
+            && action.type() == BotActionType.WAIT
+            && action.reasoning() != null
+            && action.reasoning().startsWith(FINISH_CHECK);
+    }
+
+    private static boolean scrolledOnThisPage(List<BotAction> history) {
+        for (BotAction action : history.reversed()) {
+            if (action.type() == BotActionType.SCROLL) {
+                return true;
+            }
+            if (action.type() == BotActionType.NAVIGATE) {
+                return false;
+            }
+        }
+        return false;
     }
 
     private String describe(PageSnapshot snapshot, String goal, List<BotAction> history) {
@@ -157,30 +193,55 @@ public class GeminiLlmClient implements LlmClient {
 
     /**
      * The model sees only the last actions and it miscounts them, so every page it opened with NAVIGATE
-     * is listed for it, together with whether posts were already extracted there.
+     * is listed for it: first the numbered pages whose posts are already extracted, then the other ones.
      */
     private static String describePages(List<BotAction> history) {
-        Map<String, Boolean> pages = new LinkedHashMap<>();
-        String currentPage = null;
-        for (BotAction action : history) {
-            if (action.type() == BotActionType.NAVIGATE && action.target() != null) {
-                currentPage = action.target().strip();
-                pages.putIfAbsent(currentPage, false);
-            } else if (action.type() == BotActionType.EXTRACT && currentPage != null) {
-                pages.put(currentPage, true);
+        Map<String, PageProgress> pages = pagesOf(history);
+        long extractedPages = pages.values().stream().filter(page -> page.extracted).count();
+
+        StringBuilder done = new StringBuilder("PAGES WITH EXTRACTED POSTS: ").append(extractedPages).append('\n');
+        StringBuilder other = new StringBuilder("OTHER OPENED PAGES:\n");
+        int number = 1;
+        for (Map.Entry<String, PageProgress> entry : pages.entrySet()) {
+            PageProgress page = entry.getValue();
+            String line = entry.getKey() + " (scrolls: " + page.scrolls + ", " + page.describeExtraction() + ")\n";
+            if (page.extracted) {
+                done.append(number++).append(". ").append(line);
+            } else {
+                other.append("- ").append(line);
             }
         }
+        return done.append(other).toString();
+    }
 
-        StringBuilder list = new StringBuilder("PAGES OPENED SO FAR:\n");
-        if (pages.isEmpty()) {
-            list.append("none\n");
+    private static Map<String, PageProgress> pagesOf(List<BotAction> history) {
+        Map<String, PageProgress> pages = new LinkedHashMap<>();
+        PageProgress currentPage = null;
+        for (BotAction action : history) {
+            if (action.type() == BotActionType.NAVIGATE && action.target() != null) {
+                currentPage = pages.computeIfAbsent(action.target().strip(), url -> new PageProgress());
+            } else if (currentPage != null && action.type() == BotActionType.SCROLL) {
+                currentPage.scrolls++;
+                currentPage.scrolledAfterExtract = true;
+            } else if (currentPage != null && action.type() == BotActionType.EXTRACT) {
+                currentPage.extracted = true;
+                currentPage.scrolledAfterExtract = false;
+            }
         }
-        pages.forEach((url, extracted) -> list
-            .append("- ").append(url)
-            .append(extracted ? " (posts extracted)" : " (nothing extracted)")
-            .append('\n'));
-        long extractedPages = pages.values().stream().filter(extracted -> extracted).count();
-        return list.append("PAGES WITH EXTRACTED POSTS: ").append(extractedPages).append('\n').toString();
+        return pages;
+    }
+
+    private static final class PageProgress {
+        private int scrolls;
+        private boolean extracted;
+        private boolean scrolledAfterExtract;
+
+        private String describeExtraction() {
+            if (!extracted) {
+                return "nothing extracted";
+            }
+            return scrolledAfterExtract ? "the last scroll is not extracted yet" : "posts extracted";
+        }
     }
 
     /**

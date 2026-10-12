@@ -38,6 +38,7 @@ import org.springframework.stereotype.Component;
 public class SeleniumBrowserAgent implements BrowserAgent {
     // big enough for a video page with all of its loaded comments, the LLM gets a shorter view of it
     private static final int MAX_DOM_LENGTH = 200_000;
+    private static final int SCROLL_HOPS = 3;
     private static final Pattern ELEMENT_NUMBER = Pattern.compile("^\\[?(\\d+)]?$");
     private static final String SNAPSHOT_SCRIPT = readScript("bot/snapshot.js");
     private static final String FIND_ELEMENT_SCRIPT = readScript("bot/find-element.js");
@@ -116,7 +117,11 @@ public class SeleniumBrowserAgent implements BrowserAgent {
     @Override
     public void scrollDown() {
         // TODO(student): Implement BrowserAgent.scrollDown().
-        browser().executeScript("window.scrollBy(0, Math.round(window.innerHeight * 0.85));");
+        // a few short hops instead of one jump, so that content that loads when it comes into view gets its turn
+        for (int hop = 0; hop < SCROLL_HOPS; hop++) {
+            browser().executeScript("window.scrollBy(0, Math.round(window.innerHeight * 0.85));");
+            pause(700);
+        }
         pause(1500);
     }
 

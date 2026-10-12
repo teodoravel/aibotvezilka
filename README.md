@@ -18,7 +18,7 @@ In this repository the template is implemented for **YouTube**.
 - **Browser:** Selenium with Chrome. It runs headless, `bot.headless=false` shows the window.
 - **LLM:** Google Gemini (`gemini-3.5-flash-lite`) over its REST API.
 - **Targets:** a channel (`@handle`), a hashtag, a keyword or a link to a video. A keyword is opened
-  as a hashtag page, because robots.txt does not allow bots on the YouTube search. At most 3 videos
+  as a hashtag page, because robots.txt does not allow bots on the YouTube search. At most 5 videos
   are opened for each target. No account is used, only public pages.
 - **Extraction:** on a video page the title with the description is saved as one post, and every
   loaded comment as a separate post, each with its own link.

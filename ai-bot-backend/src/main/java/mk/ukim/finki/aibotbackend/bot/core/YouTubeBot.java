@@ -26,11 +26,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class YouTubeBot extends AbstractSocialNetworkBot {
     private static final String YOUTUBE_URL = "https://www.youtube.com";
-    private static final int VIDEOS_PER_TARGET = 3;
+    // a video takes about 6 steps, so 5 videos fit in the 50 steps a target gets (bot.max-steps-per-target)
+    private static final int VIDEOS_PER_TARGET = 5;
     private static final String ON_A_VIDEO_PAGE = """
         On a video page: if the description under the video ends with "...more", click it first. \
-        Then EXTRACT. Then SCROLL down and EXTRACT again, three times, so that the comments are loaded \
-        and collected. Always EXTRACT after the last SCROLL.""";
+        Then SCROLL two times, so that the comments are loaded, and after that do one EXTRACT.""";
 
     public YouTubeBot(
         BrowserAgent browserAgent,
@@ -91,8 +91,8 @@ public class YouTubeBot extends AbstractSocialNetworkBot {
         return """
             Collect public Macedonian texts from %s. Start at %s and open its videos one at a time, at most %d, \
             newest first. Open each video with NAVIGATE to its link, never open the same video twice. \
-            After each video go back to %s for the next one, and FINISH only when posts are extracted \
-            on %d different video pages.
+            After each video go back to %s for the next one. FINISH only when the line \
+            PAGES WITH EXTRACTED POSTS shows %d, or when there are no more videos to open.
             %s
             Never use the YouTube search.""".formatted(what, url, VIDEOS_PER_TARGET, url, VIDEOS_PER_TARGET, ON_A_VIDEO_PAGE);
     }

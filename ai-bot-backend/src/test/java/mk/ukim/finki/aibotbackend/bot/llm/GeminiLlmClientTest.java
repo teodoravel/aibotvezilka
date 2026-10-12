@@ -1,6 +1,7 @@
 package mk.ukim.finki.aibotbackend.bot.llm;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.List;
 import mk.ukim.finki.aibotbackend.bot.browser.PageSnapshot;
 import mk.ukim.finki.aibotbackend.model.enums.BotActionType;
@@ -76,7 +77,8 @@ public class GeminiLlmClientTest {
                 """), MediaType.APPLICATION_JSON));
 
         List<BotAction> history = List.of(
-            new BotAction(BotActionType.NAVIGATE, "https://www.youtube.com/@test", null, "Open the channel.")
+            new BotAction(BotActionType.NAVIGATE, "https://www.youtube.com/@test", null, "Open the channel."),
+            new BotAction(BotActionType.SCROLL, null, null, "Load the posts.")
         );
         BotDecision decision = llmClient.decideNextAction(SNAPSHOT, "Собери објави", history);
 
@@ -88,9 +90,9 @@ public class GeminiLlmClientTest {
     @Test
     void testOpenedPagesAreListedForTheModel() {
         server.expect(requestTo(URL))
-            .andExpect(content().string(containsString("- https://www.youtube.com/@test (nothing extracted)")))
-            .andExpect(content().string(containsString("- https://www.youtube.com/watch?v=1 (posts extracted)")))
             .andExpect(content().string(containsString("PAGES WITH EXTRACTED POSTS: 1")))
+            .andExpect(content().string(containsString("1. https://www.youtube.com/watch?v=1 (scrolls: 1, posts extracted)")))
+            .andExpect(content().string(containsString("- https://www.youtube.com/@test (scrolls: 0, nothing extracted)")))
             .andRespond(withSuccess(answer("""
                 {"action": "NAVIGATE", "target": "https://www.youtube.com/@test", "reasoning": "Next video.", "goalReached": false}
                 """), MediaType.APPLICATION_JSON));
@@ -104,6 +106,65 @@ public class GeminiLlmClientTest {
         );
         llmClient.decideNextAction(SNAPSHOT, "Собери објави од 3 видеа", history);
 
+        server.verify();
+    }
+
+    @Test
+    void testPageIsScrolledBeforeTheFirstExtraction() {
+        server.expect(requestTo(URL))
+            .andRespond(withSuccess(answer("""
+                {"action": "EXTRACT", "reasoning": "Posts are visible.", "goalReached": false}
+                """), MediaType.APPLICATION_JSON));
+
+        List<BotAction> history = List.of(
+            new BotAction(BotActionType.NAVIGATE, "https://www.youtube.com/watch?v=1", null, "Open the video.")
+        );
+        BotDecision decision = llmClient.decideNextAction(SNAPSHOT, "Собери објави", history);
+
+        assertThat(decision.action().type()).isEqualTo(BotActionType.SCROLL);
+        assertThat(decision.goalReached()).isFalse();
+    }
+
+    @Test
+    void testScrolledPostsAreExtractedBeforeLeavingThePage() {
+        server.expect(requestTo(URL))
+            .andRespond(withSuccess(answer("""
+                {"action": "FINISH", "reasoning": "All videos are done.", "goalReached": true}
+                """), MediaType.APPLICATION_JSON));
+
+        List<BotAction> history = List.of(
+            new BotAction(BotActionType.NAVIGATE, "https://www.youtube.com/watch?v=1", null, "Open the video."),
+            new BotAction(BotActionType.SCROLL, null, null, "Load the comments.")
+        );
+        BotDecision decision = llmClient.decideNextAction(SNAPSHOT, "Собери објави", history);
+
+        assertThat(decision.action().type()).isEqualTo(BotActionType.EXTRACT);
+        assertThat(decision.goalReached()).isFalse();
+    }
+
+    @Test
+    void testFinishHasToBeSaidTwice() {
+        String finish = answer("""
+            {"action": "FINISH", "reasoning": "All videos are done.", "goalReached": true}
+            """);
+        server.expect(requestTo(URL)).andRespond(withSuccess(finish, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(URL)).andRespond(withSuccess(finish, MediaType.APPLICATION_JSON));
+
+        List<BotAction> history = new ArrayList<>(List.of(
+            new BotAction(BotActionType.NAVIGATE, "https://www.youtube.com/watch?v=1", null, "Open the video."),
+            new BotAction(BotActionType.SCROLL, null, null, "Load the comments."),
+            new BotAction(BotActionType.EXTRACT, null, null, "Comments are visible.")
+        ));
+        BotDecision first = llmClient.decideNextAction(SNAPSHOT, "Собери објави од 3 видеа", history);
+
+        assertThat(first.goalReached()).isFalse();
+        assertThat(first.action().type()).isEqualTo(BotActionType.WAIT);
+        assertThat(first.action().reasoning()).endsWith("Pages with extracted posts so far: 1.");
+
+        history.add(first.action());
+        BotDecision second = llmClient.decideNextAction(SNAPSHOT, "Собери објави од 3 видеа", history);
+
+        assertThat(second.goalReached()).isTrue();
         server.verify();
     }
 
