@@ -38,7 +38,8 @@ import org.springframework.stereotype.Component;
 public class SeleniumBrowserAgent implements BrowserAgent {
     // big enough for a video page with all of its loaded comments, the LLM gets a shorter view of it
     private static final int MAX_DOM_LENGTH = 200_000;
-    private static final int SCROLL_HOPS = 3;
+    // how far one SCROLL moves the page, in pixels
+    private static final long SCROLL_DISTANCE = 2_000;
     private static final Pattern ELEMENT_NUMBER = Pattern.compile("^\\[?(\\d+)]?$");
     private static final String SNAPSHOT_SCRIPT = readScript("bot/snapshot.js");
     private static final String FIND_ELEMENT_SCRIPT = readScript("bot/find-element.js");
@@ -117,9 +118,13 @@ public class SeleniumBrowserAgent implements BrowserAgent {
     @Override
     public void scrollDown() {
         // TODO(student): Implement BrowserAgent.scrollDown().
-        // a few short hops instead of one jump, so that content that loads when it comes into view gets its turn
-        for (int hop = 0; hop < SCROLL_HOPS; hop++) {
-            browser().executeScript("window.scrollBy(0, Math.round(window.innerHeight * 0.85));");
+        // the page moves the same distance in a small visible window as in a big hidden one, in hops shorter than
+        // the window so nothing is skipped, and content that loads when it comes into view gets its turn
+        double windowHeight = ((Number) browser().executeScript("return window.innerHeight;")).doubleValue();
+        long hop = Math.max(100, Math.round(windowHeight * 0.85));
+        long hops = (SCROLL_DISTANCE + hop - 1) / hop;
+        for (int i = 0; i < hops; i++) {
+            browser().executeScript("window.scrollBy(0, arguments[0]);", hop);
             pause(700);
         }
         pause(1500);
