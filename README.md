@@ -15,7 +15,7 @@ the platform for preserving the Macedonian language.
 
 In this repository the template is implemented for **YouTube**.
 
-- **Browser:** Selenium with Chrome. It runs headless, `bot.headless=false` shows the window.
+- **Browser:** Selenium with Chrome. Its window is shown while the bot works, `bot.headless=true` hides it.
 - **LLM:** Google Gemini (`gemini-3.5-flash-lite`) over its REST API.
 - **Targets:** a channel (`@handle`), a hashtag, a keyword or a link to a video. A keyword is opened
   as a hashtag page, because robots.txt does not allow bots on the YouTube search. At most 5 videos
