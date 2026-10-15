@@ -128,32 +128,26 @@ public class GeminiLlmClient implements LlmClient {
     public BotDecision decideNextAction(PageSnapshot snapshot, String goal, List<BotAction> history) {
         // TODO(student): Implement LlmClient.decideNextAction().
         String prompt = describe(snapshot, goal, history);
-        BotDecision decision = ask(prompt, snapshot);
         BotAction lastAction = history.isEmpty() ? null : history.getLast();
+        Map<String, PageProgress> pages = pagesOf(history);
+        long extractedPages = pages.values().stream().filter(page -> page.extracted).count();
+        Matcher requiredMatcher = REQUIRED_PAGES.matcher(goal);
+        int requiredPages = requiredMatcher.find() ? Integer.parseInt(requiredMatcher.group(1)) : 0;
+        boolean tooEarly = extractedPages < requiredPages;
+        String earlyFinishNote = EARLY_FINISH_NOTE.formatted(requiredPages, extractedPages);
 
+        BotDecision decision = ask(prompt, snapshot);
         // the model miscounts the pages it has done and finishes too early, so it is told the real numbers and asked again
-        Matcher requiredPages = REQUIRED_PAGES.matcher(goal);
-        long extractedPages = pagesOf(history).values().stream().filter(page -> page.extracted).count();
-        if (finishes(decision) && requiredPages.find() && extractedPages < Integer.parseInt(requiredPages.group(1))) {
-            int required = Integer.parseInt(requiredPages.group(1));
-            decision = ask(prompt + EARLY_FINISH_NOTE.formatted(required, extractedPages), snapshot);
-            // when it still insists, it is taken back to the page the run started on, where the next page can be chosen;
-            // a few times at most, in case there really are no more pages to open
-            long timesSentBack = history.stream().filter(GeminiLlmClient::isSentBack).count();
-            String startPage = startPage(history);
-            if (finishes(decision) && startPage != null && timesSentBack < MAX_TIMES_SENT_BACK) {
-                String reasoning = NOT_DONE_YET + "the goal needs " + required + " pages with extracted posts and there are "
-                    + extractedPages + ", back to the start page.";
-                decision = new BotDecision(
-                    new BotAction(BotActionType.NAVIGATE, startPage, null, reasoning), false, decision.rationale()
-                );
-            }
+        if (finishes(decision) && tooEarly) {
+            decision = ask(prompt + earlyFinishNote, snapshot);
         }
         // the model sometimes extracts the same unchanged page again and again, so it is asked once more with that pointed out
         if (decision.action().type() == BotActionType.EXTRACT && lastAction != null && lastAction.type() == BotActionType.EXTRACT) {
-            decision = ask(prompt + REPEATED_EXTRACT_NOTE, snapshot);
+            decision = ask(prompt + REPEATED_EXTRACT_NOTE + (tooEarly ? earlyFinishNote : ""), snapshot);
         }
 
+        String startPage = startPage(history);
+        String currentPage = currentPage(history);
         BotActionType type = decision.action().type();
         boolean leaves = finishes(decision) || type == BotActionType.NAVIGATE;
         int scrolls = scrollsOnThisPage(history);
@@ -162,6 +156,17 @@ public class GeminiLlmClient implements LlmClient {
             decision = scrolls < MIN_SCROLLS_BEFORE_EXTRACT
                 ? replaced(decision, BotActionType.SCROLL, "Scroll once more before leaving the page, so that more posts are loaded.")
                 : replaced(decision, BotActionType.EXTRACT, "Extract what the last scroll loaded before leaving the page.");
+        } else if (finishes(decision) && tooEarly && startPage != null && timesSentBack(history) < MAX_TIMES_SENT_BACK) {
+            // when it still insists on finishing too early, it is taken back to the page the run started on, where the next
+            // page can be chosen; a few times at most, in case there really are no more pages to open
+            String reasoning = NOT_DONE_YET + "the goal needs " + requiredPages + " pages with extracted posts and there are "
+                + extractedPages + ", back to the start page.";
+            decision = navigateTo(decision, startPage, reasoning);
+        } else if (type == BotActionType.NAVIGATE && startPage != null && currentPage != null && !currentPage.equals(startPage)
+            && pages.get(currentPage).extracted && !startPage.equals(target(decision))) {
+            // after a page is done the next one is chosen on the start page, links on the page itself can lead elsewhere,
+            // like the suggested videos of other channels next to a video
+            decision = navigateTo(decision, startPage, "Back to the start page to choose the next page from its list.");
         } else if (!leaves && type == BotActionType.EXTRACT && scrolls < MIN_SCROLLS_BEFORE_EXTRACT) {
             // posts further down a page (like comments) are loaded only when it is scrolled, so that comes before extracting
             decision = replaced(decision, BotActionType.SCROLL, "Scroll twice before extracting, so that more posts are loaded.");
@@ -182,14 +187,32 @@ public class GeminiLlmClient implements LlmClient {
         return new BotDecision(new BotAction(type, null, null, reasoning), false, decision.rationale());
     }
 
-    private static boolean isSentBack(BotAction action) {
-        return action.reasoning() != null && action.reasoning().startsWith(NOT_DONE_YET);
+    private static BotDecision navigateTo(BotDecision decision, String url, String reasoning) {
+        return new BotDecision(new BotAction(BotActionType.NAVIGATE, url, null, reasoning), false, decision.rationale());
+    }
+
+    private static String target(BotDecision decision) {
+        return decision.action().target() == null ? null : decision.action().target().strip();
+    }
+
+    private static long timesSentBack(List<BotAction> history) {
+        return history.stream()
+            .filter(action -> action.reasoning() != null && action.reasoning().startsWith(NOT_DONE_YET))
+            .count();
     }
 
     private static String startPage(List<BotAction> history) {
         return history.stream()
             .filter(action -> action.type() == BotActionType.NAVIGATE && action.target() != null)
-            .map(BotAction::target)
+            .map(action -> action.target().strip())
+            .findFirst()
+            .orElse(null);
+    }
+
+    private static String currentPage(List<BotAction> history) {
+        return history.reversed().stream()
+            .filter(action -> action.type() == BotActionType.NAVIGATE && action.target() != null)
+            .map(action -> action.target().strip())
             .findFirst()
             .orElse(null);
     }

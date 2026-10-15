@@ -35,7 +35,9 @@ public class GeminiLlmClientTest {
         null
     );
     private static final String GOAL_OF_THREE_PAGES = "Collect posts. FINISH only when the line PAGES WITH EXTRACTED POSTS shows 3.";
+    private static final String START_PAGE = "https://www.youtube.com/@test/videos";
     private static final List<BotAction> ONE_EXTRACTED_PAGE = List.of(
+        new BotAction(BotActionType.NAVIGATE, START_PAGE, null, "Open the channel."),
         new BotAction(BotActionType.NAVIGATE, "https://www.youtube.com/watch?v=1", null, "Open the video."),
         new BotAction(BotActionType.SCROLL, null, null, "Load the comments."),
         new BotAction(BotActionType.SCROLL, null, null, "Load more comments."),
@@ -177,12 +179,13 @@ public class GeminiLlmClientTest {
         server.expect(requestTo(URL))
             .andExpect(content().string(containsString("The goal needs 3 pages with extracted posts and there are only 1.")))
             .andRespond(withSuccess(answer("""
-                {"action": "NAVIGATE", "target": "https://www.youtube.com/@test", "reasoning": "Next video.", "goalReached": true}
+                {"action": "NAVIGATE", "target": "https://www.youtube.com/@test/videos", "reasoning": "Next video.", "goalReached": true}
                 """), MediaType.APPLICATION_JSON));
 
         BotDecision decision = llmClient.decideNextAction(SNAPSHOT, GOAL_OF_THREE_PAGES, ONE_EXTRACTED_PAGE);
 
         assertThat(decision.action().type()).isEqualTo(BotActionType.NAVIGATE);
+        assertThat(decision.action().target()).isEqualTo(START_PAGE);
         assertThat(decision.goalReached()).isFalse();
         server.verify();
     }
@@ -235,10 +238,11 @@ public class GeminiLlmClientTest {
         server.expect(requestTo(URL))
             .andExpect(content().string(containsString("Do not EXTRACT again")))
             .andRespond(withSuccess(answer("""
-                {"action": "NAVIGATE", "target": "https://www.youtube.com/@test", "reasoning": "Next video.", "goalReached": false}
+                {"action": "NAVIGATE", "target": "https://www.youtube.com/@test/videos", "reasoning": "Next video.", "goalReached": false}
                 """), MediaType.APPLICATION_JSON));
 
         List<BotAction> history = List.of(
+            new BotAction(BotActionType.NAVIGATE, START_PAGE, null, "Open the channel."),
             new BotAction(BotActionType.NAVIGATE, "https://www.youtube.com/watch?v=1", null, "Open the video."),
             new BotAction(BotActionType.SCROLL, null, null, "Load the comments."),
             new BotAction(BotActionType.SCROLL, null, null, "Load more comments."),
@@ -247,6 +251,21 @@ public class GeminiLlmClientTest {
         BotDecision decision = llmClient.decideNextAction(SNAPSHOT, "Собери објави", history);
 
         assertThat(decision.action().type()).isEqualTo(BotActionType.NAVIGATE);
+        server.verify();
+    }
+
+    @Test
+    void testNextPageIsChosenOnTheStartPage() {
+        server.expect(requestTo(URL))
+            .andRespond(withSuccess(answer("""
+                {"action": "NAVIGATE", "target": "https://www.youtube.com/watch?v=other", "reasoning": "Next video.", "goalReached": false}
+                """), MediaType.APPLICATION_JSON));
+
+        BotDecision decision = llmClient.decideNextAction(SNAPSHOT, GOAL_OF_THREE_PAGES, ONE_EXTRACTED_PAGE);
+
+        assertThat(decision.action().type()).isEqualTo(BotActionType.NAVIGATE);
+        assertThat(decision.action().target()).isEqualTo(START_PAGE);
+        assertThat(decision.action().reasoning()).startsWith("Back to the start page");
         server.verify();
     }
 
