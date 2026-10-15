@@ -43,11 +43,23 @@ public class GeminiLlmClient implements LlmClient {
     private static final int MAX_ATTEMPTS = 3;
     private static final int MAX_PAGE_LENGTH = 24_000;
     private static final int MAX_LABEL_LENGTH = 100;
+    private static final int MIN_SCROLLS_BEFORE_EXTRACT = 2;
     private static final Set<String> INLINE_TAGS = Set.of(
         "a", "span", "b", "i", "em", "strong", "small", "label", "time", "button", "abbr", "code"
     );
     private static final Pattern RETRY_DELAY = Pattern.compile("\"retryDelay\"\\s*:\\s*\"(\\d+)");
-    private static final String FINISH_CHECK = "Finish was asked, check the goal first. Pages with extracted posts so far: ";
+    // a goal can ask for a number of pages with this phrase, finishing before that number is reached is pointed out to the model
+    private static final Pattern REQUIRED_PAGES = Pattern.compile("PAGES WITH EXTRACTED POSTS shows (\\d+)");
+    private static final String EARLY_FINISH_NOTE = """
+
+        NOTE: do not FINISH yet. The goal needs %d pages with extracted posts and there are only %d. \
+        Go on with the next page, FINISH only if there are no more pages to open.""";
+    private static final String NOT_DONE_YET = "Not done yet: ";
+    private static final int MAX_TIMES_SENT_BACK = 2;
+    private static final String REPEATED_EXTRACT_NOTE = """
+
+        NOTE: the last action was EXTRACT and the page has not changed since, so its posts are already collected. \
+        Do not EXTRACT again, choose the next step of the goal.""";
 
     private static final String DECISION_PROMPT = """
         You control a web browser for a bot that collects public Macedonian-language posts from a social network \
@@ -77,8 +89,6 @@ public class GeminiLlmClient implements LlmClient {
         - If an action did not change anything, do not repeat it. Try something else or FINISH.
         - The number in the line PAGES WITH EXTRACTED POSTS and the pages listed under it are exact. \
         Read numbers from there and do not count from memory. Do not open a page from that list again.
-        - When the last action says that finish was asked, compare its number with the goal. \
-        FINISH again only if the goal is really done, otherwise go on with the next page.
         - Set goalReached to true only when the goal is done.
         Write the reasoning as one short English sentence.
         """;
@@ -117,48 +127,84 @@ public class GeminiLlmClient implements LlmClient {
     @Override
     public BotDecision decideNextAction(PageSnapshot snapshot, String goal, List<BotAction> history) {
         // TODO(student): Implement LlmClient.decideNextAction().
-        String answer = generate(DECISION_PROMPT, describe(snapshot, goal, history), snapshot.screenshotBase64(), DECISION_SCHEMA);
-        BotDecision decision = parseDecision(answer);
-        BotActionType type = decision.action().type();
+        String prompt = describe(snapshot, goal, history);
+        BotDecision decision = ask(prompt, snapshot);
         BotAction lastAction = history.isEmpty() ? null : history.getLast();
-        boolean finishes = decision.goalReached() || type == BotActionType.FINISH;
-        boolean leaves = finishes || type == BotActionType.NAVIGATE;
+
+        // the model miscounts the pages it has done and finishes too early, so it is told the real numbers and asked again
+        Matcher requiredPages = REQUIRED_PAGES.matcher(goal);
+        long extractedPages = pagesOf(history).values().stream().filter(page -> page.extracted).count();
+        if (finishes(decision) && requiredPages.find() && extractedPages < Integer.parseInt(requiredPages.group(1))) {
+            int required = Integer.parseInt(requiredPages.group(1));
+            decision = ask(prompt + EARLY_FINISH_NOTE.formatted(required, extractedPages), snapshot);
+            // when it still insists, it is taken back to the page the run started on, where the next page can be chosen;
+            // a few times at most, in case there really are no more pages to open
+            long timesSentBack = history.stream().filter(GeminiLlmClient::isSentBack).count();
+            String startPage = startPage(history);
+            if (finishes(decision) && startPage != null && timesSentBack < MAX_TIMES_SENT_BACK) {
+                String reasoning = NOT_DONE_YET + "the goal needs " + required + " pages with extracted posts and there are "
+                    + extractedPages + ", back to the start page.";
+                decision = new BotDecision(
+                    new BotAction(BotActionType.NAVIGATE, startPage, null, reasoning), false, decision.rationale()
+                );
+            }
+        }
+        // the model sometimes extracts the same unchanged page again and again, so it is asked once more with that pointed out
+        if (decision.action().type() == BotActionType.EXTRACT && lastAction != null && lastAction.type() == BotActionType.EXTRACT) {
+            decision = ask(prompt + REPEATED_EXTRACT_NOTE, snapshot);
+        }
+
+        BotActionType type = decision.action().type();
+        boolean leaves = finishes(decision) || type == BotActionType.NAVIGATE;
+        int scrolls = scrollsOnThisPage(history);
         if (leaves && lastAction != null && lastAction.type() == BotActionType.SCROLL) {
             // the model sometimes leaves a page right after scrolling, the newly loaded posts would then never be extracted
-            decision = replaced(decision, BotActionType.EXTRACT, "Extract what the last scroll loaded before leaving the page.");
-        } else if (finishes && !isFinishCheck(lastAction)) {
-            // the model sometimes miscounts and finishes too early, so it has to say it again with the real number in front of it
-            long extractedPages = pagesOf(history).values().stream().filter(page -> page.extracted).count();
-            decision = replaced(decision, BotActionType.WAIT, FINISH_CHECK + extractedPages + ".");
-        } else if (!leaves && type == BotActionType.EXTRACT && !scrolledOnThisPage(history)) {
-            // posts further down a page are loaded only when it is scrolled, so that comes before the first extraction
-            decision = replaced(decision, BotActionType.SCROLL, "Scroll before the first extraction, so that more posts are loaded.");
+            decision = scrolls < MIN_SCROLLS_BEFORE_EXTRACT
+                ? replaced(decision, BotActionType.SCROLL, "Scroll once more before leaving the page, so that more posts are loaded.")
+                : replaced(decision, BotActionType.EXTRACT, "Extract what the last scroll loaded before leaving the page.");
+        } else if (!leaves && type == BotActionType.EXTRACT && scrolls < MIN_SCROLLS_BEFORE_EXTRACT) {
+            // posts further down a page (like comments) are loaded only when it is scrolled, so that comes before extracting
+            decision = replaced(decision, BotActionType.SCROLL, "Scroll twice before extracting, so that more posts are loaded.");
         }
         log.debug("Decided {} {} ({})", decision.action().type(), decision.action().target(), decision.rationale());
         return decision;
+    }
+
+    private BotDecision ask(String prompt, PageSnapshot snapshot) {
+        return parseDecision(generate(DECISION_PROMPT, prompt, snapshot.screenshotBase64(), DECISION_SCHEMA));
+    }
+
+    private static boolean finishes(BotDecision decision) {
+        return decision.goalReached() || decision.action().type() == BotActionType.FINISH;
     }
 
     private static BotDecision replaced(BotDecision decision, BotActionType type, String reasoning) {
         return new BotDecision(new BotAction(type, null, null, reasoning), false, decision.rationale());
     }
 
-    private static boolean isFinishCheck(BotAction action) {
-        return action != null
-            && action.type() == BotActionType.WAIT
-            && action.reasoning() != null
-            && action.reasoning().startsWith(FINISH_CHECK);
+    private static boolean isSentBack(BotAction action) {
+        return action.reasoning() != null && action.reasoning().startsWith(NOT_DONE_YET);
     }
 
-    private static boolean scrolledOnThisPage(List<BotAction> history) {
+    private static String startPage(List<BotAction> history) {
+        return history.stream()
+            .filter(action -> action.type() == BotActionType.NAVIGATE && action.target() != null)
+            .map(BotAction::target)
+            .findFirst()
+            .orElse(null);
+    }
+
+    private static int scrollsOnThisPage(List<BotAction> history) {
+        int scrolls = 0;
         for (BotAction action : history.reversed()) {
-            if (action.type() == BotActionType.SCROLL) {
-                return true;
-            }
             if (action.type() == BotActionType.NAVIGATE) {
-                return false;
+                break;
+            }
+            if (action.type() == BotActionType.SCROLL) {
+                scrolls++;
             }
         }
-        return false;
+        return scrolls;
     }
 
     private String describe(PageSnapshot snapshot, String goal, List<BotAction> history) {
@@ -380,7 +426,9 @@ public class GeminiLlmClient implements LlmClient {
             BotActionType type = BotActionType.valueOf(json.path("action").asText().strip().toUpperCase());
             String reasoning = textOrNull(json.path("reasoning"));
             BotAction action = new BotAction(type, textOrNull(json.path("target")), textOrNull(json.path("value")), reasoning);
-            return new BotDecision(action, json.path("goalReached").asBoolean(false), reasoning);
+            // the goal counts as reached only together with FINISH, the model sometimes marks other actions as done by mistake
+            boolean goalReached = type == BotActionType.FINISH && json.path("goalReached").asBoolean(false);
+            return new BotDecision(action, goalReached, reasoning);
         } catch (JsonProcessingException | IllegalArgumentException e) {
             throw new BotExecutionException("Gemini returned an invalid decision: " + answer, e);
         }
