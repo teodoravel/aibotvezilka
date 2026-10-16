@@ -52,7 +52,7 @@ public class GeminiLlmClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        GeminiProperties properties = new GeminiProperties("https://gemini.test/v1beta", "test-key", "test-model", "backup-model");
+        GeminiProperties properties = new GeminiProperties("https://gemini.test/v1beta", "test-key", "test-model", List.of("backup-model"));
         llmClient = new GeminiLlmClient(builder, properties, objectMapper);
     }
 
@@ -300,6 +300,18 @@ public class GeminiLlmClientTest {
             server.expect(requestTo(URL))
                 .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).contentType(MediaType.APPLICATION_JSON).body(overloaded));
         }
+        server.expect(requestTo("https://gemini.test/v1beta/models/backup-model:generateContent"))
+            .andRespond(withSuccess(answer("Здраво!"), MediaType.APPLICATION_JSON));
+
+        assertThat(llmClient.complete("Одговори кратко.", "Кажи здраво.")).isEqualTo("Здраво!");
+        server.verify();
+    }
+
+    @Test
+    void testModelWithAUsedUpDailyQuotaIsSkippedAtOnce() {
+        String quotaUsedUp = "{\"error\": {\"code\": 429, \"details\": [{\"retryDelay\": \"34114s\"}]}}";
+        server.expect(requestTo(URL))
+            .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS).contentType(MediaType.APPLICATION_JSON).body(quotaUsedUp));
         server.expect(requestTo("https://gemini.test/v1beta/models/backup-model:generateContent"))
             .andRespond(withSuccess(answer("Здраво!"), MediaType.APPLICATION_JSON));
 

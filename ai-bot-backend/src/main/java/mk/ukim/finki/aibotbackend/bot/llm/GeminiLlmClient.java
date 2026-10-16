@@ -42,6 +42,7 @@ public class GeminiLlmClient implements LlmClient {
     private static final int HISTORY_SIZE = 15;
     private static final int MAX_ATTEMPTS = 6;
     private static final int ATTEMPTS_BEFORE_FALLBACK = 3;
+    private static final long MAX_WAIT_SECONDS = 60;
     private static final int MAX_PAGE_LENGTH = 24_000;
     private static final int MAX_LABEL_LENGTH = 100;
     private static final int MIN_SCROLLS_BEFORE_EXTRACT = 2;
@@ -403,16 +404,22 @@ public class GeminiLlmClient implements LlmClient {
         body.put("contents", List.of(Map.of("role", "user", "parts", parts)));
         body.put("generationConfig", generationConfig);
 
-        String fallbackModel = properties.fallbackModel();
-        if (fallbackModel == null || fallbackModel.isBlank()) {
-            return send(properties.model(), body, MAX_ATTEMPTS);
+        // when a model stays overloaded, out of quota or does not answer, the next one is asked; models are often not
+        // overloaded at the same time, and the last one gets the most patience
+        List<String> models = new ArrayList<>(List.of(properties.model()));
+        if (properties.fallbackModels() != null) {
+            properties.fallbackModels().stream().filter(model -> model != null && !model.isBlank()).map(String::strip).forEach(models::add);
         }
-        try {
-            return send(properties.model(), body, ATTEMPTS_BEFORE_FALLBACK);
-        } catch (BotExecutionException e) {
-            // the main model stays overloaded or out of quota for a while, the other model usually is not at the same time
-            log.warn("{} is not available, asking {} instead.", properties.model(), fallbackModel);
-            return send(fallbackModel, body, MAX_ATTEMPTS);
+        for (int i = 0; ; i++) {
+            boolean last = i == models.size() - 1;
+            try {
+                return send(models.get(i), body, last ? MAX_ATTEMPTS : ATTEMPTS_BEFORE_FALLBACK);
+            } catch (BotExecutionException e) {
+                if (last) {
+                    throw e;
+                }
+                log.warn("{} is not available, asking {} instead.", models.get(i), models.get(i + 1));
+            }
         }
     }
 
@@ -426,7 +433,8 @@ public class GeminiLlmClient implements LlmClient {
                     .body(JsonNode.class);
                 return textOf(response);
             } catch (HttpClientErrorException.TooManyRequests | HttpServerErrorException e) {
-                if (attempt == maxAttempts) {
+                // a used-up daily quota asks to come back in hours, waiting for that makes no sense, so the next model is asked
+                if (attempt == maxAttempts || requestedDelaySeconds(e) > MAX_WAIT_SECONDS) {
                     throw new BotExecutionException("Gemini is not available right now (%s).".formatted(e.getStatusCode()), e);
                 }
                 long seconds = retryDelaySeconds(e, attempt);
@@ -477,10 +485,15 @@ public class GeminiLlmClient implements LlmClient {
     }
 
     private static long retryDelaySeconds(RestClientResponseException e, int attempt) {
-        Matcher matcher = RETRY_DELAY.matcher(e.getResponseBodyAsString());
         // when Gemini says how long to wait that is used, otherwise every wait is twice as long as the one before
         // (5, 10, 20, 40, 60 seconds), because a spike of demand on the model usually passes within a minute or two
-        return matcher.find() ? Math.min(Long.parseLong(matcher.group(1)), 60) : Math.min(5L << (attempt - 1), 60);
+        long requested = requestedDelaySeconds(e);
+        return requested >= 0 ? Math.min(requested, MAX_WAIT_SECONDS) : Math.min(5L << (attempt - 1), MAX_WAIT_SECONDS);
+    }
+
+    private static long requestedDelaySeconds(RestClientResponseException e) {
+        Matcher matcher = RETRY_DELAY.matcher(e.getResponseBodyAsString());
+        return matcher.find() ? Long.parseLong(matcher.group(1)) : -1;
     }
 
     private static void pause(long millis) {
