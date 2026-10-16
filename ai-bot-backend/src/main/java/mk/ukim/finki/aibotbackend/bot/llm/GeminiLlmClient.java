@@ -40,7 +40,8 @@ import org.springframework.web.client.RestClientResponseException;
 @Component
 public class GeminiLlmClient implements LlmClient {
     private static final int HISTORY_SIZE = 15;
-    private static final int MAX_ATTEMPTS = 3;
+    private static final int MAX_ATTEMPTS = 6;
+    private static final int ATTEMPTS_BEFORE_FALLBACK = 3;
     private static final int MAX_PAGE_LENGTH = 24_000;
     private static final int MAX_LABEL_LENGTH = 100;
     private static final int MIN_SCROLLS_BEFORE_EXTRACT = 2;
@@ -402,20 +403,34 @@ public class GeminiLlmClient implements LlmClient {
         body.put("contents", List.of(Map.of("role", "user", "parts", parts)));
         body.put("generationConfig", generationConfig);
 
+        String fallbackModel = properties.fallbackModel();
+        if (fallbackModel == null || fallbackModel.isBlank()) {
+            return send(properties.model(), body, MAX_ATTEMPTS);
+        }
+        try {
+            return send(properties.model(), body, ATTEMPTS_BEFORE_FALLBACK);
+        } catch (BotExecutionException e) {
+            // the main model stays overloaded or out of quota for a while, the other model usually is not at the same time
+            log.warn("{} is not available, asking {} instead.", properties.model(), fallbackModel);
+            return send(fallbackModel, body, MAX_ATTEMPTS);
+        }
+    }
+
+    private String send(String model, Map<String, Object> body, int maxAttempts) {
         for (int attempt = 1; ; attempt++) {
             try {
                 JsonNode response = restClient.post()
-                    .uri("/models/{model}:generateContent", properties.model())
+                    .uri("/models/{model}:generateContent", model)
                     .body(body)
                     .retrieve()
                     .body(JsonNode.class);
                 return textOf(response);
             } catch (HttpClientErrorException.TooManyRequests | HttpServerErrorException e) {
-                if (attempt == MAX_ATTEMPTS) {
+                if (attempt == maxAttempts) {
                     throw new BotExecutionException("Gemini is not available right now (%s).".formatted(e.getStatusCode()), e);
                 }
                 long seconds = retryDelaySeconds(e, attempt);
-                log.warn("Gemini answered {}, trying again in {} s.", e.getStatusCode(), seconds);
+                log.warn("Gemini ({}) answered {}, trying again in {} s.", model, e.getStatusCode(), seconds);
                 pause(seconds * 1000);
             } catch (RestClientException e) {
                 throw new BotExecutionException("Calling Gemini failed: " + e.getMessage(), e);
@@ -463,7 +478,9 @@ public class GeminiLlmClient implements LlmClient {
 
     private static long retryDelaySeconds(RestClientResponseException e, int attempt) {
         Matcher matcher = RETRY_DELAY.matcher(e.getResponseBodyAsString());
-        return matcher.find() ? Math.min(Long.parseLong(matcher.group(1)), 60) : attempt * 5L;
+        // when Gemini says how long to wait that is used, otherwise every wait is twice as long as the one before
+        // (5, 10, 20, 40, 60 seconds), because a spike of demand on the model usually passes within a minute or two
+        return matcher.find() ? Math.min(Long.parseLong(matcher.group(1)), 60) : Math.min(5L << (attempt - 1), 60);
     }
 
     private static void pause(long millis) {

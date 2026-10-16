@@ -52,7 +52,7 @@ public class GeminiLlmClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        GeminiProperties properties = new GeminiProperties("https://gemini.test/v1beta", "test-key", "test-model");
+        GeminiProperties properties = new GeminiProperties("https://gemini.test/v1beta", "test-key", "test-model", "backup-model");
         llmClient = new GeminiLlmClient(builder, properties, objectMapper);
     }
 
@@ -287,6 +287,20 @@ public class GeminiLlmClientTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("{\"error\": {\"code\": 429, \"details\": [{\"retryDelay\": \"0s\"}]}}"));
         server.expect(requestTo(URL))
+            .andRespond(withSuccess(answer("Здраво!"), MediaType.APPLICATION_JSON));
+
+        assertThat(llmClient.complete("Одговори кратко.", "Кажи здраво.")).isEqualTo("Здраво!");
+        server.verify();
+    }
+
+    @Test
+    void testBackupModelIsAskedWhileTheMainOneIsOverloaded() {
+        String overloaded = "{\"error\": {\"code\": 503, \"details\": [{\"retryDelay\": \"0s\"}]}}";
+        for (int attempt = 0; attempt < 3; attempt++) {
+            server.expect(requestTo(URL))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).contentType(MediaType.APPLICATION_JSON).body(overloaded));
+        }
+        server.expect(requestTo("https://gemini.test/v1beta/models/backup-model:generateContent"))
             .andRespond(withSuccess(answer("Здраво!"), MediaType.APPLICATION_JSON));
 
         assertThat(llmClient.complete("Одговори кратко.", "Кажи здраво.")).isEqualTo("Здраво!");
